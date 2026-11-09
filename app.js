@@ -29,7 +29,7 @@ async function boot() {
     $('identity').textContent = me.username;
     $('myTeam').textContent = me.team?.name || 'Noch nicht zugewiesen';
     $('myBalance').textContent = me.team ? new Intl.NumberFormat('de-DE').format(me.team.budget) + ' Coins' : '–';
-    $('admin').classList.toggle('hidden', !me.admin);
+    document.querySelectorAll('#admin form, #close').forEach(el => el.classList.remove('hidden'));
     notice('Discord-Login erfolgreich. Auktionen werden im nächsten Schritt aktiviert.');
     // Existing Firebase admin forms are disabled until Cloudflare API endpoints exist.
     document.querySelectorAll('#admin form, #close').forEach(el => { el.classList.add('hidden'); });
