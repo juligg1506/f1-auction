@@ -33,7 +33,6 @@ async function boot() {
     notice('Discord-Login erfolgreich. Auktionen werden im nächsten Schritt aktiviert.');
     // Existing Firebase admin forms are disabled until Cloudflare API endpoints exist.
     document.querySelectorAll('#admin form, #close').forEach(el => { el.classList.add('hidden'); });
-    $('auctions').textContent = 'Auktionen werden nach Einrichtung der sicheren Gebots-API angezeigt.';
     $('teams').textContent = 'Teamübersicht wird im nächsten Schritt verbunden.';
   } catch (error) {
     sessionStorage.removeItem('f1_session'); token = null; notice(error.message);
