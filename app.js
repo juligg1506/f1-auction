@@ -2,12 +2,16 @@
 const API = 'https://f1-auction-api.julianbacher668.workers.dev';
 const $ = id => document.getElementById(id);
 const format = n => new Intl.NumberFormat('de-DE').format(n);
-const notice = message => { $('notice').textContent = message; };
+const notice = message => {
+  $('notice').textContent = message;
+};
 
 let token = sessionStorage.getItem('f1_session');
 let isAdmin = false;
+let myTeam = null;
 let currentAuction = null;
 let serverOffset = 0;
+let bidPending = false;
 
 if (location.hash.startsWith('#session=')) {
   const candidate = location.hash.slice('#session='.length);
@@ -59,6 +63,16 @@ async function apiRequest(path, options = {}) {
   return data;
 }
 
+async function refreshBalance() {
+  const me = await apiRequest('/api/me');
+  myTeam = me.team || null;
+
+  $('myTeam').textContent = myTeam?.name || 'Noch nicht zugewiesen';
+  $('myBalance').textContent = myTeam
+    ? format(myTeam.budget) + ' Coins'
+    : '–';
+}
+
 async function boot() {
   if (!token) return;
 
@@ -66,6 +80,7 @@ async function boot() {
     const me = await apiRequest('/api/me');
 
     isAdmin = Boolean(me.admin);
+    myTeam = me.team || null;
 
     $('login').classList.add('hidden');
     $('logout').classList.remove('hidden');
@@ -73,14 +88,13 @@ async function boot() {
     $('app').classList.remove('hidden');
 
     $('identity').textContent = me.username;
-    $('myTeam').textContent = me.team?.name || 'Noch nicht zugewiesen';
-    $('myBalance').textContent = me.team
-      ? format(me.team.budget) + ' Coins'
+    $('myTeam').textContent = myTeam?.name || 'Noch nicht zugewiesen';
+    $('myBalance').textContent = myTeam
+      ? format(myTeam.budget) + ' Coins'
       : '–';
 
     $('admin').classList.toggle('hidden', !isAdmin);
 
-    // Noch nicht implementierte Admin-Funktionen ausblenden.
     $('createTeam').classList.add('hidden');
     $('assignTeam').classList.add('hidden');
     $('close').classList.add('hidden');
@@ -152,10 +166,11 @@ async function loadAuction() {
     title.textContent = '🏎️ ' + a.driverName;
 
     const price = document.createElement('p');
-    price.textContent = 'Startpreis: ' + format(a.startingPrice) + ' Coins';
+    price.textContent =
+      'Startpreis: ' + format(a.startingPrice) + ' Coins';
 
     const highest = document.createElement('p');
-    highest.textContent = a.highestBid
+    highest.textContent = a.highestBid != null
       ? 'Höchstgebot: ' + format(a.highestBid) + ' Coins'
       : 'Noch keine Gebote';
 
@@ -164,8 +179,79 @@ async function loadAuction() {
     timer.id = 'auctionTimer';
 
     card.append(title, price, highest, timer);
-    container.replaceChildren(card);
 
+    // Bieten ist in der Testphase auch für Admins erlaubt.
+    if (myTeam) {
+      const nextBid = a.highestBid != null
+        ? Number(a.highestBid) + 250000
+        : Number(a.startingPrice);
+
+      const bidButton = document.createElement('button');
+      bidButton.type = 'button';
+      bidButton.id = 'bidButton';
+      bidButton.textContent =
+        '💰 ' + format(nextBid) + ' Coins bieten';
+
+      const remaining =
+        Date.parse(a.endsAt) - Date.now() - serverOffset;
+
+      bidButton.disabled =
+        bidPending ||
+        remaining <= 0 ||
+        myTeam.budget < nextBid;
+
+      if (myTeam.budget < nextBid) {
+        const warning = document.createElement('p');
+        warning.textContent = 'Nicht genügend Coins.';
+        card.appendChild(warning);
+      }
+
+      bidButton.onclick = async () => {
+        if (bidPending) return;
+
+        const remainingNow =
+          Date.parse(a.endsAt) - Date.now() - serverOffset;
+
+        if (remainingNow <= 0) {
+          notice('Diese Auktion ist bereits abgelaufen.');
+          return;
+        }
+
+        if (!confirm(
+          format(nextBid) + ' Coins für ' +
+          a.driverName + ' bieten?'
+        )) return;
+
+        bidPending = true;
+        bidButton.disabled = true;
+
+        try {
+          await apiRequest('/api/auctions/bid', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              auctionId: a.id,
+              amount: nextBid
+            })
+          });
+
+          notice('Gebot erfolgreich abgegeben!');
+
+          await refreshBalance();
+          await loadAuction();
+        } catch (error) {
+          notice('Gebot fehlgeschlagen: ' + error.message);
+        } finally {
+          bidPending = false;
+        }
+      };
+
+      card.appendChild(bidButton);
+    }
+
+    container.replaceChildren(card);
     updateTimer();
   } catch (error) {
     console.error('Auktion konnte nicht geladen werden:', error);
@@ -181,7 +267,8 @@ function updateTimer() {
   const remaining = Math.max(
     0,
     Math.ceil(
-      (Date.parse(currentAuction.endsAt) - Date.now() - serverOffset) / 1000
+      (Date.parse(currentAuction.endsAt) -
+        Date.now() - serverOffset) / 1000
     )
   );
 
@@ -194,6 +281,9 @@ function updateTimer() {
 
   if (remaining === 0) {
     timer.textContent = 'Zeit abgelaufen – Abschluss ausstehend';
+
+    const bidButton = $('bidButton');
+    if (bidButton) bidButton.disabled = true;
   }
 }
 
@@ -208,8 +298,12 @@ $('createAuction').addEventListener('submit', async event => {
   const driverId = Number(form.elements.driverId.value);
   const startingPrice = Number(form.elements.startingPrice.value);
 
-  if (!Number.isSafeInteger(driverId) || driverId <= 0 ||
-      !Number.isSafeInteger(startingPrice) || startingPrice < 250000) {
+  if (
+    !Number.isSafeInteger(driverId) ||
+    driverId <= 0 ||
+    !Number.isSafeInteger(startingPrice) ||
+    startingPrice < 250000
+  ) {
     notice('Bitte gültigen Fahrer und Startpreis auswählen.');
     return;
   }
@@ -221,14 +315,22 @@ $('createAuction').addEventListener('submit', async event => {
   try {
     await apiRequest('/api/admin/auctions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ driverId, startingPrice })
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        driverId,
+        startingPrice
+      })
     });
 
     notice('Fahrerauktion erfolgreich gestartet!');
     await loadAuction();
   } catch (error) {
-    notice('Auktion konnte nicht gestartet werden: ' + error.message);
+    notice(
+      'Auktion konnte nicht gestartet werden: ' +
+      error.message
+    );
   } finally {
     button.disabled = false;
   }
@@ -237,7 +339,7 @@ $('createAuction').addEventListener('submit', async event => {
 setInterval(updateTimer, 1000);
 
 setInterval(() => {
-  if (token) loadAuction();
+  if (token && !bidPending) loadAuction();
 }, 3000);
 
 boot();
