@@ -39,4 +39,32 @@ async function boot() {
     sessionStorage.removeItem('f1_session'); token = null; notice(error.message);
   }
 }
+async function loadDrivers() {
+  const container = $('auctions');
+
+  try {
+    const response = await fetch(API + '/api/drivers');
+    if (!response.ok) throw new Error('API nicht erreichbar');
+
+    const data = await response.json();
+
+    const heading = document.createElement('h3');
+    heading.textContent = 'Verfügbare Fahrer';
+
+    const list = document.createElement('ul');
+
+    for (const driver of data.drivers) {
+      const item = document.createElement('li');
+      item.textContent = driver.name;
+      list.appendChild(item);
+    }
+
+    container.replaceChildren(heading, list);
+  } catch (error) {
+    container.textContent = 'Fahrer konnten nicht geladen werden.';
+    console.error(error);
+  }
+}
+
+loadDrivers();
 boot();
