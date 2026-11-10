@@ -631,7 +631,7 @@ async function deliverNotifications(env) {
       });
       if (!response.ok) {
         const retry = response.status === 429 ? Number((await response.json()).retry_after) : 0;
-        const error = new Error('Discord HTTP ' + response.status); error.retryAfter = retry; throw error;
+        throw Object.assign(new Error('Discord HTTP ' + response.status), { retryAfter: retry });
       }
       await env.DB.prepare('UPDATE auction_notifications SET sent_at = ?, lease_until = NULL WHERE event_key = ? AND lease_until = ?')
         .bind(new Date().toISOString(), item.event_key, lease).run();
