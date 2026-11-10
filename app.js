@@ -56,7 +56,7 @@ async function boot() {
     $('close').classList.add('hidden');
     await loadTeams();
     notice('Discord-Login erfolgreich.');
-    await loadDrivers(); await loadAuction(); await loadExtensions();
+    await loadDrivers(); await loadAuction(); await loadExtensions(); await loadRaceArea();
   } catch(e) { sessionStorage.removeItem('f1_session'); token=null; notice(e.message); }
 }
 
@@ -410,5 +410,121 @@ $('driverDialog').addEventListener('cancel', () => { profileRequest++; });
 $('refreshTransfers').addEventListener('click', loadTransfers);
 setInterval(() => { if (token && extensionReady) { loadTransfers(); if (isAdmin) loadQueue(); } }, 30000);
 
+let raceEnabled = false, raceOptions = { drivers: [], teams: [] }, raceLoadSequence = 0, raceOpenSequence = 0, raceSaving = false;
+let raceEditor = null, racePoints = [25,18,15,12,10,8,6,4,2,1];
+const raceStatusLabel = { classified: 'Klassifiziert', dnf: 'DNF', dns: 'DNS', dsq: 'DSQ' };
+function raceDate(value) { return new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(value + 'T00:00:00Z')); }
+function resultTable(headers, rows, label) {
+  const wrap = ui('div', 'race-table-wrap'); wrap.tabIndex = 0; wrap.setAttribute('role','region'); wrap.setAttribute('aria-label',label);
+  const table = ui('table', 'race-table'), caption = ui('caption','sr-only',label), head=ui('thead',''), header=ui('tr',''), body=ui('tbody','');
+  for (const text of headers) { const cell=ui('th','',text);cell.scope='col';header.append(cell); }
+  head.append(header);
+  for (const cells of rows) { const row=ui('tr','');for (const value of cells) { const cell=ui('td',''); if (value instanceof Node) cell.append(value);else cell.textContent=String(value);row.append(cell); }body.append(row); }
+  table.append(caption,head,body);wrap.append(table);return wrap;
+}
+async function loadRaceArea() {
+  const sequence=++raceLoadSequence;
+  const season=$('raceSeason').value.trim(); if (!season || season.length>40) return;
+  try {
+    if (!raceEnabled) { const features=await apiRequest('/api/features');raceEnabled=features.raceResults === true; }
+    if (sequence!==raceLoadSequence) return;
+    $('raceCreateSection').classList.toggle('hidden',!isAdmin || !raceEnabled);
+    if (!raceEnabled) { $('raceList').textContent='Noch keine Rennergebnisse verfügbar.';$('driverStandings').replaceChildren();$('teamStandings').replaceChildren();return; }
+    if (isAdmin && !raceOptions.drivers.length) raceOptions=await apiRequest('/api/admin/races/options');
+    const [data, standings]=await Promise.all([apiRequest((isAdmin?'/api/admin/races':'/api/races')+'?season='+encodeURIComponent(season)),apiRequest('/api/standings?season='+encodeURIComponent(season))]);
+    if (sequence!==raceLoadSequence) return;
+    racePoints=data.pointsSystem;
+    $('raceSeasons').replaceChildren(...(data.seasons||[]).map(value=>new Option(value,value)));
+    $('raceList').replaceChildren();
+    for (const race of data.races) {
+      const row=ui('article','race-list-row'), info=ui('div','');
+      info.append(ui('p','muted',raceDate(race.raceDate)+' · '+(race.status==='draft'?'Entwurf':'Veröffentlicht')),ui('h3','',race.name));
+      const button=ui('button','outline',isAdmin?'Ergebnisse bearbeiten':'Ergebnisse ansehen');button.type='button';button.onclick=()=>openRace(race.id,isAdmin);
+      row.append(info,button);$('raceList').append(row);
+    }
+    if (!data.races.length) $('raceList').append(ui('p','muted','Für diese Saison sind noch keine Rennen vorhanden.'));
+    for (const [id,items,label] of [['driverStandings',standings.drivers,'Fahrerwertung'],['teamStandings',standings.teams,'Teamwertung']]) {
+      $(id).replaceChildren(items.length?resultTable(['Platz',label==='Fahrerwertung'?'Fahrer':'Team','Punkte','Siege'],items.map(row=>[row.rank,row.name,row.points,row.wins]),label):ui('p','muted','Noch keine veröffentlichten Ergebnisse.'));
+    }
+  } catch (error) { if (sequence===raceLoadSequence) $('raceList').textContent='Die Rennergebnisse konnten nicht geladen werden. Bitte erneut versuchen.'; }
+}
+async function openRace(id, edit) {
+  const sequence=++raceOpenSequence;
+  $('raceDialogTitle').textContent=edit?'Rennergebnisse bearbeiten':'Rennergebnis';$('raceDialogBody').textContent='Rennen wird geladen …';$('raceEditorNotice').textContent='';
+  if (!$('raceDialog').open) $('raceDialog').showModal();
+  try {
+    const data=await apiRequest((edit?'/api/admin/races/':'/api/races/')+id);
+    if (sequence!==raceOpenSequence) return;
+    if (edit) {
+      raceEditor=data;racePoints=data.pointsSystem;renderRaceEditor();
+    } else {
+      $('raceDialogTitle').textContent=data.race.name;
+      $('raceDialogBody').replaceChildren(ui('p','muted',data.race.season+' · '+raceDate(data.race.raceDate)),resultTable(['Platz','Fahrer','Team','Status','Punkte'],data.results.map(row=>[row.position??'–',row.driverName,row.teamName||'Ohne Team',raceStatusLabel[row.status],row.points]),'Rennergebnis'));
+    }
+  } catch { if(sequence===raceOpenSequence)$('raceDialogBody').textContent='Das Rennen konnte nicht geladen werden.'; }
+}
+function raceField(labelText, control) { const label=ui('label','',labelText);label.append(control);return label; }
+function raceInput(type,name,value) { const input=ui('input','');input.type=type;input.name=name;input.value=value;input.required=true;return input; }
+function renderRaceEditor() {
+  const {race,results}=raceEditor, form=ui('form','race-editor');form.id='raceEditorForm';
+  const header=ui('div','race-editor-meta'), name=raceInput('text','raceName',race.name), season=raceInput('text','raceSeason',race.season), date=raceInput('date','raceDate',race.raceDate);
+  name.maxLength=120;season.maxLength=40;
+  header.append(raceField('Rennen',name),raceField('Saison / Meisterschaft',season),raceField('Renndatum',date));
+  form.append(header,ui('p','muted','Punkte: '+racePoints.join(' · ')+'. Keine Zusatzpunkte. DNF, DNS und DSQ: ohne Platz und ohne Punkte. Für gewertete Fahrer „Klassifiziert“ wählen. Das Team gilt für dieses Rennen.'));
+  const wrap=resultTable(['Fahrer','Team im Rennen','Status','Platz','Punkte',''],[],'Ergebnisse bearbeiten; auf kleinen Displays seitlich scrollen');wrap.classList.add('race-editor-table');wrap.querySelector('tbody').id='raceEditorRows';form.append(wrap);
+  const add=ui('button','outline','Fahrer hinzufügen');add.type='button';add.id='addRaceResult';add.onclick=()=>addRaceRow();
+  const footer=ui('div','race-editor-actions'), draft=ui('button','outline',race.status==='published'?'Veröffentlichung zurücknehmen':'Entwurf speichern');draft.type='button';draft.id='saveRaceDraft';
+  draft.onclick=()=>{ if(form.reportValidity())saveRace('draft'); };
+  const publish=ui('button','',race.status==='published'?'Korrektur veröffentlichen':'Ergebnisse veröffentlichen');publish.type='submit';publish.id='publishRace';
+  form.onsubmit=event=>{event.preventDefault();saveRace('published');};
+  footer.append(draft,publish);form.append(add,footer);$('raceDialogBody').replaceChildren(form);
+  for (const result of results) addRaceRow(result);
+  if (!results.length) addRaceRow();
+}
+function addRaceRow(result) {
+  const body=$('raceEditorRows');if(body.children.length>=60)return;
+  const row=ui('tr','race-result-input');
+  const driver=ui('select','race-driver');driver.required=true;driver.setAttribute('aria-label','Fahrer');driver.add(new Option('Fahrer auswählen',''));
+  for (const item of raceOptions.drivers) driver.add(new Option(item.name+(item.active?'':' (inaktiv)'),item.id));
+  const team=ui('select','race-team');team.setAttribute('aria-label','Team im Rennen');team.add(new Option('Ohne Team',''));for(const item of raceOptions.teams)team.add(new Option(item.name,item.id));
+  const status=ui('select','race-result-status');status.setAttribute('aria-label','Ergebnisstatus');for(const [value,label]of Object.entries(raceStatusLabel))status.add(new Option(label,value));
+  const position=ui('input','race-position');position.type='number';position.min='1';position.max='60';position.step='1';position.setAttribute('aria-label','Platzierung');
+  const points=ui('output','race-points'),remove=ui('button','outline','Entfernen');remove.type='button';remove.setAttribute('aria-label','Ergebniszeile entfernen');remove.onclick=()=>row.remove();
+  function update(){const classified=status.value==='classified';position.disabled=!classified;position.required=classified;if(!classified)position.value='';points.textContent=String(classified?(racePoints[Number(position.value)-1]||0):0);}
+  driver.onchange=()=>{const item=raceOptions.drivers.find(item=>item.id===Number(driver.value));team.value=item?.teamId==null?'':String(item.teamId);};
+  status.onchange=update;position.oninput=update;
+  for(const control of [driver,team,status,position,points,remove]){const cell=ui('td','');cell.append(control);row.append(cell);}body.append(row);
+  if(result){driver.value=String(result.driverId);team.value=result.teamId==null?'':String(result.teamId);status.value=result.status;position.value=result.position??'';}
+  else{const used=new Set([...body.querySelectorAll('.race-position')].map(input=>Number(input.value)));let next=1;while(used.has(next))next++;position.value=String(next);}
+  update();
+}
+async function saveRace(status) {
+  if(raceSaving||!raceEditor)return;
+  const form=$('raceEditorForm'),rows=[...$('raceEditorRows').children];
+  const results=rows.map(row=>({driverId:Number(row.querySelector('.race-driver').value),teamId:row.querySelector('.race-team').value?Number(row.querySelector('.race-team').value):null,status:row.querySelector('.race-result-status').value,position:row.querySelector('.race-result-status').value==='classified'?Number(row.querySelector('.race-position').value):null}));
+  if(status==='published'&&!results.length){$('raceEditorNotice').textContent='Bitte mindestens einen Fahrer eintragen.';return;}
+  if(new Set(results.map(row=>row.driverId)).size!==results.length){$('raceEditorNotice').textContent='Jeden Fahrer nur einmal eintragen.';return;}
+  const positions=results.filter(row=>row.position!==null).map(row=>row.position);
+  if(new Set(positions).size!==positions.length){$('raceEditorNotice').textContent='Jeden Platz nur einmal vergeben.';return;}
+  if(status==='published'&&!confirm('Diese Ergebnisse veröffentlichen und die Meisterschaftswertungen aktualisieren?'))return;
+  if(status==='draft'&&raceEditor.race.status==='published'&&!confirm('Veröffentlichung zurücknehmen? Dieses Rennen zählt dann nicht mehr zur Wertung.'))return;
+  const payload={name:form.elements.raceName.value,season:form.elements.raceSeason.value,raceDate:form.elements.raceDate.value,revision:raceEditor.race.revision,status,results};
+  raceSaving=true;const controls=[...form.querySelectorAll('button,input,select')];const states=controls.map(e=>e.disabled);controls.forEach(e=>e.disabled=true);$('closeRaceDialog').disabled=true;$('raceEditorNotice').textContent='Wird gespeichert …';
+  try{await apiRequest('/api/admin/races/'+raceEditor.race.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('raceSeason').value=payload.season.trim();$('raceDialog').close();raceOpenSequence++;await loadRaceArea();notice(status==='published'?'Rennergebnis veröffentlicht.':'Rennergebnis als Entwurf gespeichert.');}
+  catch(error){$('raceEditorNotice').textContent=error.message;}
+  finally{raceSaving=false;controls.forEach((e,i)=>e.disabled=states[i]);$('closeRaceDialog').disabled=false;}
+}
+$('raceSeason').value=String(new Date().getFullYear());$('newRaceSeason').value=$('raceSeason').value;
+$('raceFilter').onsubmit=event=>{event.preventDefault();loadRaceArea();};
+$('createRace').onsubmit=async event=>{
+  event.preventDefault();if(!isAdmin||!raceEnabled)return;
+  const form=event.currentTarget,button=form.querySelector('button');button.disabled=true;$('raceCreateNotice').textContent='';
+  try{const result=await apiRequest('/api/admin/races',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:form.elements.raceName.value,season:form.elements.raceSeason.value,raceDate:form.elements.raceDate.value})});$('raceSeason').value=form.elements.raceSeason.value;form.elements.raceName.value='';await loadRaceArea();await openRace(result.id,true);}
+  catch(error){$('raceCreateNotice').textContent=error.message;}finally{button.disabled=false;}
+};
+$('closeRaceDialog').onclick=()=>{if(!raceSaving){raceOpenSequence++;$('raceDialog').close();}};
+$('raceDialog').addEventListener('cancel',event=>{if(raceSaving)event.preventDefault();else raceOpenSequence++;});
+
 boot();
+
 

@@ -251,6 +251,37 @@ body:has(#driverDialog[open]){overflow:hidden}
 .outbid-alert{position:sticky;top:90px;z-index:12;margin:0 0 20px;padding:18px;background:#382126;color:#fff1f3;border-left:3px solid var(--red);line-height:1.5}
 .auction-leader{font-weight:600}
 @media(max-width:760px){.bid-history{padding:23px}.bid-history-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.bid-history-row time{grid-column:1/-1}.transfer-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.section-toolbar{align-items:flex-start;flex-wrap:wrap}#driverDialog{padding:20px}}
+/* Rennergebnisse und Meisterschaft */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+#results-section{margin-top:36px}
+.race-filter{display:flex;align-items:end;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+.race-filter label{flex:1;max-width:360px;min-width:180px}
+.race-filter input{margin-bottom:0}
+.race-list-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 0;border-bottom:1px solid var(--stroke)}
+.race-list-row:first-child{padding-top:0}.race-list-row:last-child{border:0;padding-bottom:0}
+.race-list-row h3{margin:0;font-size:20px;overflow-wrap:anywhere}.race-list-row p{font-size:12px;margin:0 0 8px;line-height:1.5}
+.race-list-row>div{min-width:0}.race-list-row button{flex-shrink:0}
+.standings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;margin-top:24px}
+.standings-grid .card{padding:24px}.standings-grid h3{font-size:20px}
+.race-table-wrap{max-width:100%;overflow:auto;overscroll-behavior:contain;border:1px solid var(--stroke);border-radius:3px}
+.race-table{border-collapse:collapse;width:100%;font-size:13px;text-align:left;font-variant-numeric:tabular-nums}
+.race-table th{padding:13px 14px;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#b7bdc7;background:#111316;font-weight:600;white-space:nowrap}
+.race-table td{padding:14px;border-top:1px solid var(--stroke);overflow-wrap:anywhere}
+#raceCreateSection{margin-top:28px}#createRace{max-width:650px}
+#raceDialog{width:min(1120px,calc(100% - 28px));max-width:none;max-height:calc(100dvh - 28px);padding:28px;color:var(--text);background:#17191d;border:1px solid var(--stroke);border-top:3px solid var(--red);border-radius:6px;overscroll-behavior:contain}
+#raceDialog::backdrop{background:#000c}body:has(#raceDialog[open]){overflow:hidden}
+#raceDialogTitle{overflow-wrap:anywhere;min-width:0;font-size:27px}
+#raceEditorNotice{line-height:1.6;color:#ffc3cb}#raceEditorNotice:empty{display:none}
+.race-editor-meta{display:grid;grid-template-columns:2fr 1fr 1fr;gap:16px}
+.race-editor-table .race-table{min-width:850px}.race-editor-table td{padding:12px 8px}
+.race-editor-table input,.race-editor-table select{margin:0;font-size:13px;padding:10px;min-height:44px}
+.race-editor-table .race-driver{min-width:170px}.race-editor-table .race-team{min-width:140px}.race-editor-table .race-position{width:72px}
+.race-editor-actions{display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-top:24px}
+#addRaceResult{margin-top:16px}.race-editor>p{line-height:1.7;font-size:13px}
+#closeRaceDialog{white-space:nowrap}
+@media(max-width:1000px){.standings-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:640px){#raceDialog{padding:18px}.race-editor-meta{grid-template-columns:minmax(0,1fr);gap:0}.race-list-row{align-items:flex-start;flex-direction:column;gap:14px}.race-editor-actions{flex-direction:column}.standings-grid .card{padding:18px}#raceDialogTitle{font-size:22px}.race-table td,.race-table th{padding:12px 10px}}
+
 </style>
 </head>
 <body>
@@ -259,6 +290,7 @@ body:has(#driverDialog[open]){overflow:hidden}
  <div class="nav-label">Racing League</div>
  <a class="nav-link active" href="#dashboard"><span class="nav-icon">▦</span><span class="nav-text">Dashboard</span></a>
  <a class="nav-link" href="#auction-section"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
+ <a class="nav-link" href="#results-section"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-text">Ergebnisse</span></a>
  <a class="nav-link" href="#team-section"><span class="nav-icon">▤</span><span class="nav-text">Teams</span></a>
  <a class="nav-link" href="#admin"><span class="nav-icon">⚙</span><span class="nav-text">Administration</span></a>
  <div class="side-bottom">Racing League<br>Fahrerauktionen</div>
@@ -281,6 +313,13 @@ body:has(#driverDialog[open]){overflow:hidden}
 <p id="auctionNotice" role="status" aria-live="polite"></p>
 <div id="auctions" class="grid"></div>
 </dialog>
+<section id="results-section"><h2 class="section">Rennergebnisse</h2>
+<form id="raceFilter" class="race-filter"><label>Saison / Meisterschaft<input id="raceSeason" name="season" list="raceSeasons" maxlength="40" required><datalist id="raceSeasons"></datalist></label><button type="submit" class="outline">Anzeigen</button></form>
+<div id="raceList" class="card"><p class="muted">Noch keine Rennergebnisse verfügbar.</p></div>
+<div class="standings-grid"><section class="card"><h3>Fahrerwertung</h3><div id="driverStandings"></div></section><section class="card"><h3>Teamwertung</h3><div id="teamStandings"></div></section></div>
+<p class="muted">Nur veröffentlichte Rennen zählen. Bei Punktgleichheit entscheiden die besseren Platzierungen; vollständig gleiche Wertungen teilen sich den Rang.</p>
+</section>
+<dialog id="raceDialog" aria-labelledby="raceDialogTitle"><header class="auction-window-header"><h2 id="raceDialogTitle">Rennergebnis</h2><button id="closeRaceDialog" class="outline" type="button" autofocus>Schließen ×</button></header><p id="raceEditorNotice" role="status" aria-live="polite"></p><div id="raceDialogBody"></div></dialog>
 <section class="transfers-section"><div class="section-toolbar"><h2 class="section">Letzte Transfers</h2><button id="refreshTransfers" class="outline" type="button">Aktualisieren</button></div><div id="transferList" class="card"><p class="muted">Die Transferhistorie wird geladen.</p></div></section>
 <h2 id="team-section" class="section">Teams & Fahrer</h2><div id="teams" class="grid"></div>
 <dialog id="driverDialog" aria-labelledby="driverDialogTitle"><div class="auction-window-header"><h2 id="driverDialogTitle">Fahrerprofil</h2><button id="closeDriver" class="outline" type="button" autofocus>Schließen ×</button></div><div id="driverProfileBody"></div></dialog>
@@ -288,11 +327,12 @@ body:has(#driverDialog[open]){overflow:hidden}
 <form id="createTeam" class="card"><h3>Team erstellen</h3><label>Teamname<input name="name" required maxlength="60"></label><button type="submit">Erstellen</button></form>
 <form id="assignTeam" class="card"><h3>Teamchef zuweisen</h3><label>Discord-Benutzer-ID<input name="discordId" required pattern="[0-9]{15,25}"></label><label>Team<select name="teamId" id="teamSelect" required></select></label><button type="submit">Zuweisen</button></form>
 <form id="createAuction" class="card"><h3>🏎️ Fahrerauktion starten</h3><label>Fahrer<select name="driverId" id="auctionDriver" required><option value="">Fahrer auswählen</option></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><p class="muted">Gebotsschritt: 250.000 Coins</p><p class="muted">Auktionsdauer: 3 Minuten</p><button type="submit">Auktion starten</button></form>
-</div><section id="queueSection" class="hidden"><h3>Auktionen planen</h3><p class="muted">Geplante Auktionen starten ab dem gewählten Termin, sobald der Auktionsplatz frei ist. Prüfung ungefähr einmal pro Minute.</p><form id="planAuction" class="card"><label>Fahrer<select name="driverId" id="queueDriver" required></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><label>Termin (Zeitzone deines Geräts)<input name="scheduledAt" type="datetime-local" required></label><button type="submit">Auktion vormerken</button></form><ul id="queueList" class="queue-list"></ul><p id="discordDeliveryStatus" class="muted"></p></section><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
+</div><section id="raceCreateSection" class="hidden"><h3>Rennen anlegen</h3><p class="muted">Zunächst als Entwurf anlegen. Ergebnisse werden erst nach der Veröffentlichung sichtbar und gewertet.</p><form id="createRace" class="card"><label>Rennen<input name="raceName" maxlength="120" placeholder="z. B. Großer Preis von Österreich" required></label><label>Saison / Meisterschaft<input id="newRaceSeason" name="raceSeason" maxlength="40" required></label><label>Renndatum<input name="raceDate" type="date" required></label><p id="raceCreateNotice" role="status" aria-live="polite"></p><button type="submit">Rennen als Entwurf anlegen</button></form></section><section id="queueSection" class="hidden"><h3>Auktionen planen</h3><p class="muted">Geplante Auktionen starten ab dem gewählten Termin, sobald der Auktionsplatz frei ist. Prüfung ungefähr einmal pro Minute.</p><form id="planAuction" class="card"><label>Fahrer<select name="driverId" id="queueDriver" required></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><label>Termin (Zeitzone deines Geräts)<input name="scheduledAt" type="datetime-local" required></label><button type="submit">Auktion vormerken</button></form><ul id="queueList" class="queue-list"></ul><p id="discordDeliveryStatus" class="muted"></p></section><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
 </div>
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-features-v2"></script>
+<script type="module" src="app.js?v=20261110-races-v1"></script>
 </body></html>
+
 

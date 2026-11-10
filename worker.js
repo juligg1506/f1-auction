@@ -426,7 +426,7 @@ try {
 }
 
 if (path === '/api/features' && request.method === 'GET') {
-  return json({ version: 2, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
+  return json({ version: 2, raceResults: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
 }
 if (path === '/api/transfers' && request.method === 'GET') {
   return json({ transfers: await transferHistory(env) }, 200, cors);
@@ -473,6 +473,92 @@ if (path.startsWith('/api/admin/queue')) {
     return json({ ok: true }, 200, cors);
   }
 }
+const isRaceAdminPath = path === '/api/admin/races' || path.startsWith('/api/admin/races/');
+const isRacePublicPath = path === '/api/races' || /^\/api\/races\/\d+$/.test(path) || path === '/api/standings';
+if (isRaceAdminPath || isRacePublicPath) {
+  const adminSession = isRaceAdminPath ? await getSession(request, env) : null;
+  if (isRaceAdminPath && !adminSession) return safeError('Nicht angemeldet', 401);
+  if (isRaceAdminPath && !adminSession.admin) return safeError('Nur Admins dürfen Rennergebnisse bearbeiten', 403);
+  const season = (url.searchParams.get('season') || String(new Date().getUTCFullYear())).trim();
+  if (!season || season.length > 40) return safeError('Ungültige Saison', 400);
+  if (path === '/api/admin/races/options' && request.method === 'GET') {
+    const result = await env.DB.batch([
+      env.DB.prepare('SELECT id, name, team_id AS teamId, discord_active AS active FROM drivers ORDER BY name'),
+      env.DB.prepare('SELECT id, name FROM teams ORDER BY name')
+    ]);
+    return json({ drivers: result[0].results, teams: result[1].results }, 200, cors);
+  }
+  if ((path === '/api/races' || path === '/api/admin/races') && request.method === 'GET') {
+    const result = await env.DB.prepare(`SELECT id, season, name, race_date AS raceDate, status, revision
+      FROM races WHERE season = ? ${isRaceAdminPath ? '' : "AND status = 'published'"} ORDER BY race_date DESC, id DESC`).bind(season).all();
+    const seasons = await env.DB.prepare(`SELECT DISTINCT season FROM races ${isRaceAdminPath ? '' : "WHERE status = 'published'"} ORDER BY season DESC`).all();
+    return json({ races: result.results, seasons: seasons.results.map(row => row.season), pointsSystem: RACE_POINTS }, 200, cors);
+  }
+  if (path === '/api/standings' && request.method === 'GET') {
+    const rows = await env.DB.prepare(`SELECT rr.driver_id AS driverId, rr.driver_name AS driverName,
+      rr.team_id AS teamId, rr.team_name AS teamName, rr.position, rr.status, rr.points
+      FROM race_results rr JOIN races r ON r.id = rr.race_id
+      WHERE r.status = 'published' AND r.season = ? ORDER BY r.race_date, r.id`).bind(season).all();
+    return json({ season, drivers: buildStandings(rows.results, 'driver'), teams: buildStandings(rows.results, 'team') }, 200, cors);
+  }
+  const match = /^\/api\/(?:admin\/)?races\/(\d+)$/.exec(path);
+  if (match && request.method === 'GET') {
+    const race = await readRace(env, Number(match[1]), isRaceAdminPath);
+    return race ? json(race, 200, cors) : safeError('Rennen nicht gefunden', 404);
+  }
+  if (path === '/api/admin/races' && request.method === 'POST') {
+    const body = await request.json().catch(() => null);
+    const header = validateRaceHeader(body);
+    if (!header) return safeError('Name, Saison oder Renndatum ungültig', 400);
+    const now = new Date().toISOString();
+    try {
+      const result = await env.DB.prepare(`INSERT INTO races (season, name, race_date, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?) RETURNING id, revision`).bind(header.season, header.name, header.raceDate, adminSession.discordId, now, now).all();
+      return json({ ok: true, ...result.results[0] }, 201, cors);
+    } catch (error) { return safeError('Ein Rennen mit diesem Namen und Datum ist in dieser Saison bereits vorhanden oder konnte nicht angelegt werden.', 409); }
+  }
+  if (match && isRaceAdminPath && request.method === 'POST') {
+    const id = Number(match[1]), body = await request.json().catch(() => null);
+    const header = validateRaceHeader(body);
+    if (!header || !Number.isSafeInteger(body.revision) || body.revision < 1 || !['draft','published'].includes(body.status) || !Array.isArray(body.results) || body.results.length > 60 || (body.status === 'published' && !body.results.length)) {
+      return safeError('Ungültige Ergebnisse oder fehlende Rennangaben', 400);
+    }
+    const options = await env.DB.batch([env.DB.prepare('SELECT id, name FROM drivers'), env.DB.prepare('SELECT id, name FROM teams')]);
+    const driverMap = new Map(options[0].results.map(row => [row.id, row.name]));
+    const teamMap = new Map(options[1].results.map(row => [row.id, row.name]));
+    const existing = await readRace(env, id, true);
+    if (!existing) return safeError('Rennen nicht gefunden', 404);
+    const snapshots = new Map(existing.results.map(row => [row.driverId, row]));
+    const seenDrivers = new Set(), seenPositions = new Set(), clean = [];
+    for (const item of body.results) {
+      if (!item || !Number.isSafeInteger(item.driverId) || !driverMap.has(item.driverId) || seenDrivers.has(item.driverId) || !['classified','dnf','dns','dsq'].includes(item.status) || !(item.teamId === null || (Number.isSafeInteger(item.teamId) && teamMap.has(item.teamId)))) {
+        return safeError('Fahrer und Teams müssen gültig sein; jeder Fahrer darf nur einmal vorkommen.', 400);
+      }
+      const position = item.status === 'classified' ? item.position : null;
+      if ((item.status !== 'classified' && item.position !== null) || (item.status === 'classified' && (!Number.isSafeInteger(position) || position < 1 || position > 60 || seenPositions.has(position)))) {
+        return safeError('Klassifizierte Plätze müssen zwischen 1 und 60 liegen und eindeutig sein. DNF, DNS und DSQ haben keinen Platz.', 400);
+      }
+      seenDrivers.add(item.driverId); if (position !== null) seenPositions.add(position);
+      const prior = snapshots.get(item.driverId);
+      clean.push({ driverId: item.driverId, driverName: prior?.driverName || driverMap.get(item.driverId), teamId: item.teamId,
+        teamName: item.teamId === null ? null : prior?.teamId === item.teamId ? prior.teamName : teamMap.get(item.teamId),
+        position, status: item.status, points: position === null ? 0 : RACE_POINTS[position - 1] || 0 });
+    }
+    try {
+      const statements = [env.DB.prepare(`SELECT CASE WHEN EXISTS (SELECT 1 FROM races WHERE id = ? AND revision = ?)
+        THEN 1 ELSE json_extract('stale race', '$') END`).bind(id, body.revision),
+        env.DB.prepare(`UPDATE races SET season = ?, name = ?, race_date = ?, status = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?`)
+          .bind(header.season, header.name, header.raceDate, body.status, new Date().toISOString(), id, body.revision),
+        env.DB.prepare('DELETE FROM race_results WHERE race_id = ?').bind(id)];
+      for (const row of clean) statements.push(env.DB.prepare(`INSERT INTO race_results (race_id, driver_id, driver_name, team_id, team_name, position, status, points)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, row.driverId, row.driverName, row.teamId, row.teamName, row.position, row.status, row.points));
+      await env.DB.batch(statements);
+      return json({ ok: true, revision: body.revision + 1 }, 200, cors);
+    } catch (error) { return safeError('Ergebnisse wurden zwischenzeitlich geändert oder konnten nicht gespeichert werden. Bitte das Rennen neu öffnen.', 409); }
+  }
+  return safeError('Route oder Methode nicht gefunden', 404);
+}
+
   return safeError('Not found', 404);
 
 } catch (err) {
@@ -642,4 +728,35 @@ async function deliverNotifications(env) {
       console.warn('Discord-Nachricht wird erneut versucht', item.event_key, item.attempts);
     }
   }
+}
+
+
+const RACE_POINTS = [25,18,15,12,10,8,6,4,2,1];
+function validateRaceHeader(body) {
+  if (!body || typeof body.name !== 'string' || typeof body.season !== 'string' || typeof body.raceDate !== 'string') return null;
+  const name = body.name.trim(), season = body.season.trim(), date = new Date(body.raceDate + 'T00:00:00Z');
+  if (!name || name.length > 120 || !season || season.length > 40 || !/^\d{4}-\d{2}-\d{2}$/.test(body.raceDate) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0,10) !== body.raceDate) return null;
+  return { name, season, raceDate: body.raceDate };
+}
+async function readRace(env, id, includeDraft) {
+  if (!Number.isSafeInteger(id) || id < 1) return null;
+  const result = await env.DB.batch([
+    env.DB.prepare(`SELECT id, season, name, race_date AS raceDate, status, revision FROM races WHERE id = ? ${includeDraft ? '' : "AND status = 'published'"}`).bind(id),
+    env.DB.prepare(`SELECT driver_id AS driverId, driver_name AS driverName, team_id AS teamId, team_name AS teamName, position, status, points
+      FROM race_results WHERE race_id = ? ORDER BY position IS NULL, position, driver_name, driver_id`).bind(id)
+  ]);
+  return result[0].results[0] ? { race: result[0].results[0], results: result[1].results, pointsSystem: RACE_POINTS } : null;
+}
+function buildStandings(rows, kind) {
+  const map = new Map();
+  for (const row of rows) {
+    const id = row[kind + 'Id']; if (id === null) continue;
+    let item = map.get(id);
+    if (!item) { item = { id, name: row[kind + 'Name'], points: 0, wins: 0, countback: Array(60).fill(0) }; map.set(id, item); }
+    item.name = row[kind + 'Name']; item.points += row.points;
+    if (row.status === 'classified' && row.position !== null) { item.countback[row.position - 1]++; if (row.position === 1) item.wins++; }
+  }
+  const compare = (a,b) => { if (a.points !== b.points) return b.points - a.points; for (let i=0;i<60;i++) if (a.countback[i] !== b.countback[i]) return b.countback[i] - a.countback[i]; return 0; };
+  const list = [...map.values()].sort((a,b) => compare(a,b) || a.name.localeCompare(b.name, 'de') || a.id - b.id);
+  return list.map((item,i) => { item.rank = i && compare(item,list[i-1]) === 0 ? list[i-1].rank : i+1; return { id: item.id, name: item.name, points: item.points, wins: item.wins, rank: item.rank }; });
 }

@@ -29,7 +29,7 @@ function reset(){try{unlinkSync(dbfile)}catch{};const base=`CREATE TABLE teams(i
 CREATE TABLE drivers(id INTEGER PRIMARY KEY,name TEXT,team_id INTEGER REFERENCES teams(id),discord_id TEXT UNIQUE,discord_active INTEGER);
 CREATE TABLE auctions(id INTEGER PRIMARY KEY AUTOINCREMENT,driver_id INTEGER REFERENCES drivers(id),starting_price INTEGER,ends_at TEXT,status TEXT,leading_bid_id INTEGER);
 CREATE TABLE bids(id INTEGER PRIMARY KEY AUTOINCREMENT,auction_id INTEGER REFERENCES auctions(id),team_id INTEGER REFERENCES teams(id),amount INTEGER,created_at TEXT);`;
-for(const statement of (base+readFileSync(join(root,'migrations/001_auction_features.sql'),'utf8').replace(/^--.*$/gm,'')).split(';').filter(s=>s.trim()))sql(statement);
+for(const statement of (base+(readFileSync(join(root,'migrations/001_auction_features.sql'),'utf8')+readFileSync(join(root,'migrations/002_race_results.sql'),'utf8')).replace(/^--.*$/gm,'')).split(';').filter(s=>s.trim()))sql(statement);
 sql("INSERT INTO teams VALUES(1,'Ferrari','admin',100000000),(2,'McLaren','other',100000000)");sql("INSERT INTO drivers VALUES(1,'Theo',NULL,'100',1),(2,'Moritz',1,'200',1)");messages=[];discordFailure=false;}
 async function cron(){worker.scheduled({},env,ctx);await drain()}
 reset();
@@ -93,4 +93,64 @@ let failed=sql("SELECT * FROM auction_notifications WHERE sent_at IS NULL");asse
 discordFailure=false;sql("UPDATE auction_notifications SET next_attempt_at=? WHERE sent_at IS NULL",[new Date(Date.now()-1000).toISOString()]);await cron();
 assert.equal(sql('SELECT COUNT(*) n FROM auction_notifications WHERE sent_at IS NULL')[0].n,0);
 console.log('PASS durable Discord retry, no duplicate outbox events');
-console.log('ALL WORKER TESTS PASSED');
+
+reset();
+const raceHeader={name:'Österreich',season:'2026',raceDate:'2026-11-10'};
+assert.equal((await request('/api/admin/races',null,raceHeader)).status,401);
+assert.equal((await request('/api/admin/races','viewer',raceHeader)).status,403);
+assert.equal((await request('/api/admin/races','admin',{...raceHeader,raceDate:'2026-02-30'})).status,400);
+assert.equal((await request('/api/admin/races','admin',raceHeader)).status,201);
+assert.equal((await request('/api/admin/races','admin',raceHeader)).status,409);
+assert.equal((await request('/api/races/1',null)).status,404);
+assert.equal((await request('/api/races?season=2026',null)).body.races.length,0);
+assert.equal((await request('/api/admin/races?season=2026')).body.races.length,1);
+assert.equal((await request('/api/admin/races/options','viewer')).status,403);
+const results=[{driverId:1,teamId:1,position:1,status:'classified',points:999},{driverId:2,teamId:2,position:2,status:'classified'}];
+let save={...raceHeader,revision:1,status:'published',results};
+assert.equal((await request('/api/admin/races/1','admin',{...save,results:[]})).status,400);
+assert.equal((await request('/api/admin/races/1','admin',{...save,results:[results[0],results[0]]})).status,400);
+assert.equal((await request('/api/admin/races/1','admin',{...save,results:[results[0],{...results[1],position:1}]})).status,400);
+assert.equal((await request('/api/admin/races/1','admin',{...save,results:[{...results[0],driverId:999}]})).status,400);
+assert.equal((await request('/api/admin/races/1','admin',{...save,results:[{...results[0],teamId:999}]})).status,400);
+assert.equal((await request('/api/admin/races/1','admin',{...save,results:[{...results[0],status:'dnf'}]})).status,400);
+assert.equal((await request('/api/admin/races/1','viewer',save)).status,403);
+assert.equal((await request('/api/admin/races/1','admin',save)).status,200);
+assert.equal((await request('/api/admin/races/1','admin',save)).status,409);
+let race=(await request('/api/races/1',null)).body;
+assert.equal(race.results[0].points,25);assert.equal(race.results[1].points,18);assert.equal(race.race.revision,2);
+let standings=(await request('/api/standings?season=2026',null)).body;
+assert.equal(standings.drivers[0].points,25);assert.equal(standings.teams[0].points,25);
+assert.equal((await request('/api/standings?season=2027',null)).body.drivers.length,0);
+// Driver/team snapshots survive roster transfers and renaming.
+sql("UPDATE drivers SET team_id=2,name='Theo neu' WHERE id=1");sql("UPDATE teams SET name='Ferrari neu' WHERE id=1");
+race=(await request('/api/races/1',null)).body;assert.equal(race.results[0].driverName,'Theo');assert.equal(race.results[0].teamName,'Ferrari');
+assert.equal((await request('/api/admin/races','admin',{...raceHeader,name:'Monza'})).status,201);
+const next=[{driverId:1,teamId:2,position:2,status:'classified'},{driverId:2,teamId:1,position:1,status:'classified'}];
+assert.equal((await request('/api/admin/races/2','admin',{...raceHeader,name:'Monza',revision:1,status:'published',results:next})).status,200);
+standings=(await request('/api/standings?season=2026',null)).body;
+assert.deepEqual(standings.drivers.map(r=>r.points),[43,43]);assert.deepEqual(standings.drivers.map(r=>r.rank),[1,1]);
+assert.equal(standings.teams.find(r=>r.id===1).points,50);assert.equal(standings.teams.find(r=>r.id===2).points,36);
+assert.equal(sql('SELECT SUM(budget) total FROM teams')[0].total,200000000);
+assert.equal(sql('SELECT COUNT(*) n FROM bids')[0].n,0);
+console.log('PASS race auth/drafts/publication, validation, server points, revisions, season filtering, snapshots, team totals and tied ranks');
+assert.equal((await request('/api/admin/races','admin',{...raceHeader,name:'Spa'})).status,201);
+const third={...raceHeader,name:'Spa',revision:1,status:'published',results:[{driverId:1,teamId:2,position:null,status:'dnf'},{driverId:2,teamId:1,position:1,status:'classified'}]};
+const concurrent=await Promise.all([request('/api/admin/races/3','admin',third),request('/api/admin/races/3','admin',third)]);
+assert.equal(concurrent.filter(r=>r.status===200).length,1);assert.equal(concurrent.filter(r=>r.status===409).length,1);
+assert.equal((await request('/api/races/3',null)).body.results.find(r=>r.driverId===1).points,0);
+standings=(await request('/api/standings?season=2026',null)).body;assert.equal(standings.drivers[0].id,2);assert.equal(standings.drivers[0].points,68);
+assert.equal((await request('/api/admin/races/3','admin',{...third,revision:2,status:'draft'})).status,200);
+assert.equal((await request('/api/races/3',null)).status,404);standings=(await request('/api/standings?season=2026',null)).body;assert.deepEqual(standings.drivers.map(r=>r.points),[43,43]);
+// Correcting a published race replaces, rather than adds to, existing points.
+assert.equal((await request('/api/admin/races/1','admin',{...save,revision:2,results:[{...results[0],position:3}]})).status,200);
+assert.equal((await request('/api/races/1',null)).body.results.length,1);
+standings=(await request('/api/standings?season=2026',null)).body;assert.equal(standings.drivers.find(r=>r.id===1).points,33);assert.equal(standings.drivers.find(r=>r.id===2).points,25);
+// No double/triple tie rank regression; full countback distinguishes equal points.
+const {buildStandings}=await import('data:text/javascript;base64,'+Buffer.from(readFileSync(join(root,'worker.js'),'utf8')+'\nexport {buildStandings};').toString('base64'));
+const tie=[1,2,3].map(id=>({driverId:id,driverName:'Test '+id,teamId:null,teamName:null,points:0,status:'dnf',position:null}));
+assert.deepEqual(buildStandings(tie,'driver').map(r=>r.rank),[1,1,1]);
+assert.deepEqual(buildStandings([{...tie[0],points:25,status:'classified',position:1},{...tie[1],points:25,status:'classified',position:2}],'driver').map(r=>r.rank),[1,2]);
+console.log('PASS concurrent correction, DNF zero points, unpublishing, replacement totals, triple ties and countback');
+console.log('ALL AUCTION AND RACE WORKER TESTS PASSED');
+
+export {worker, env, ctx, drain};

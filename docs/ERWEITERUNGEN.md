@@ -1,5 +1,7 @@
 # F1 Auction – Erweiterungen
 
+**Aktueller Hinweis:** `worker.js` enthält inzwischen auch Rennergebnisse. Vor dessen Veröffentlichung zusätzlich Migration `002_race_results.sql` anwenden; Ablauf und Regeln stehen in [RENNERGEBNISSE.md](RENNERGEBNISSE.md).
+
 ## Stand
 
 Frontend und Worker-Code sind implementiert und lokal getestet. Die Worker-Veröffentlichung und die D1-Migration müssen im Cloudflare-Konto erfolgen. Bis dahin funktioniert das Frontend mit der bisherigen API; noch nicht angebotene Historien werden als nicht verfügbar angezeigt. Es gibt keine simulierten Transfers oder Gebote.
@@ -69,3 +71,4 @@ python3 tests/frontend.test.py
 ```
 
 Die Browserprüfung verwendet standardmäßig `/usr/bin/chromium`; `CHROMIUM_PATH` kann auf eine andere Chromium-Installation zeigen. Alle Schreibzugriffe und Discord-Aufrufe der Tests verwenden isolierte Daten bzw. Testantworten.
+
