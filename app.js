@@ -63,71 +63,62 @@ async function loadTeams() {
     const data = await apiRequest('/api/teams');
     const container = $('teams');
     container.replaceChildren();
-
+    const identities = {
+      Alpine: ['ALP', '#ff87bc'], 'Aston Martin': ['AM', '#229971'],
+      Audi: ['AUDI', '#f50537'], Cadillac: ['CAD', '#d4af37'],
+      Ferrari: ['SF', '#e8002d'], Haas: ['HAAS', '#b6babd'],
+      McLaren: ['MCL', '#ff8000'], Mercedes: ['AMG', '#27f4d2'],
+      'Racing Bulls': ['VCARB', '#6692ff'], 'Red Bull': ['RBR', '#3671c6'],
+      Williams: ['W', '#64c4ff']
+    };
+    const element = (tag, className, text) => {
+      const node = document.createElement(tag);
+      node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const initials = name => String(name || '').trim().split(/\s+/u).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('').toUpperCase() || '–';
     for (const team of data.teams || []) {
-      const card = document.createElement('div');
-      card.className = 'card';
-
-const teamColors = {
-  'Ferrari': '#e8002d',
-  'Mercedes': '#27f4d2',
-  'McLaren': '#ff8000',
-  'Red Bull': '#3671c6',
-  'Racing Bulls': '#6692ff',
-  'Aston Martin': '#229971',
-  'Alpine': '#ff87bc',
-  'Williams': '#64c4ff',
-  'Haas': '#b6babd',
-  'Audi': '#f50537',
-  'Cadillac': '#d4af37'
-};
-
-const teamColor = teamColors[team.name] || '#ff3c51';
-
-card.style.setProperty('--team-color', teamColor);
-card.style.setProperty('--team-glow', '#1b202b');
-
-      const title = document.createElement('h3');
-      title.textContent = team.name;
-
-      const label = document.createElement('p');
-      label.className = 'muted';
-      label.textContent = 'Verfügbares Budget';
-
-      const balance = document.createElement('div');
-      balance.className = 'stat red';
-      balance.innerHTML = `${format(team.budget)} <span class="coin-unit">Coins</span>`;
-
-
-const squad = document.createElement('div');
-squad.className = 'team-squad';
-squad.style.marginTop = '20px';
-squad.style.paddingTop = '15px';
-squad.style.borderTop = '1px solid #303744';
-
-const squadTitle = document.createElement('p');
-squadTitle.className = 'muted';
-squadTitle.textContent = 'FAHRERKADER';
-squad.appendChild(squadTitle);
-
-if (team.drivers && team.drivers.length > 0) {
-  for (const driver of team.drivers) {
-    const driverName = document.createElement('p');
-    driverName.textContent = driver.name;
-    driverName.className = 'team-driver';
-    driverName.style.margin = '8px 0';
-    squad.appendChild(driverName);
-  }
-} else {
-  const empty = document.createElement('p');
-  empty.className = 'muted';
-  empty.textContent = 'Noch keine Fahrer verpflichtet';
-  squad.appendChild(empty);
-}
-
-card.append(title, label, balance, squad);
-
-      container.appendChild(card);
+      const [code, color] = identities[team.name] || [initials(team.name), '#ff3c51'];
+      const card = element('article', 'card team-profile');
+      card.style.setProperty('--team-color', color);
+      const header = element('header', 'team-profile-header');
+      const mark = element('div', 'team-wordmark', code);
+      mark.setAttribute('aria-hidden', 'true');
+      const identity = element('div', 'team-identity');
+      identity.append(element('p', 'team-kicker', 'RACING LEAGUE'), element('h3', 'team-name', team.name));
+      header.append(mark, identity);
+      const details = element('dl', 'team-details');
+      const ownerRow = element('div', 'team-owner');
+      // Never resolve a Discord ID to a guessed name.
+      const ownerName = typeof team.owner_username === 'string' && team.owner_username.trim()
+        ? team.owner_username : null;
+      ownerRow.append(element('dt', '', 'Teamchef'), element('dd', '', ownerName || 'Nicht verfügbar'));
+      const budgetRow = element('div', 'team-budget');
+      const amount = element('dd', 'stat', format(team.budget));
+      amount.append(element('span', 'coin-unit', 'Coins'));
+      budgetRow.append(element('dt', '', 'Verfügbares Budget'), amount);
+      details.append(ownerRow, budgetRow);
+      const squad = element('section', 'team-squad');
+      const roster = Array.isArray(team.drivers) ? team.drivers : [];
+      const squadHeader = element('div', 'team-squad-header');
+      squadHeader.append(element('h4', '', 'Fahrerkader'), element('span', 'team-roster-count', String(roster.length).padStart(2, '0')));
+      squad.append(squadHeader);
+      if (roster.length) {
+        const list = element('ul', 'team-roster');
+        for (const driver of roster) {
+          const row = element('li', 'team-driver');
+          const monogram = element('span', 'driver-initials', initials(driver.name));
+          monogram.setAttribute('aria-hidden', 'true');
+          row.append(monogram, element('span', 'driver-name', driver.name));
+          list.append(row);
+        }
+        squad.append(list);
+      } else {
+        squad.append(element('p', 'team-empty', 'Noch keine Fahrer verpflichtet'));
+      }
+      card.append(header, details, squad);
+      container.append(card);
     }
   } catch (error) {
     console.error(error);
