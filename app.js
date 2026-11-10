@@ -1,7 +1,7 @@
 const API = 'https://f1-auction-api.julianbacher668.workers.dev';
 const $ = id => document.getElementById(id);
 const format = n => new Intl.NumberFormat('de-DE').format(n);
-const notice = message => { $('notice').textContent = message; };
+const notice = message => { $('notice').textContent = message; const auctionNotice = $('auctionNotice'); if (auctionNotice) auctionNotice.textContent = message; };
 const BID_STEP = 250000;
 let token = sessionStorage.getItem('f1_session');
 let isAdmin = false, myTeam = null, currentAuction = null, serverOffset = 0;
@@ -219,14 +219,21 @@ async function loadAuction() {
     currentAuction=data.auction; serverOffset=Date.parse(data.serverTime)-Date.now();
     if(!currentAuction){selectedAuctionId=null;selectedBid=null;renderDrivers();return;}
     const a=currentAuction, card=document.createElement('div'); card.className='card auction-card';
-    const status=document.createElement('span');status.className='status';status.textContent='LIVE-AUKTION';
-    const title=document.createElement('h3');title.style.marginTop='16px';title.textContent='🏎️ '+a.driverName;
+    const overview=document.createElement('div');overview.className='auction-overview';
+    const bidding=document.createElement('div');bidding.className='auction-bidding';
+    const status=document.createElement('span');status.className='auction-live-label';status.textContent='FAHRERAUKTION';
+    const title=document.createElement('h3');title.style.marginTop='16px';title.textContent=a.driverName;
     const price=document.createElement('p');price.className='muted';price.textContent='Startpreis: '+format(a.startingPrice)+' Coins';
-    const highest=document.createElement('p');highest.textContent=a.highestBid!=null?'Höchstgebot: '+format(a.highestBid)+' Coins':'Noch keine Gebote';
+    const highest=document.createElement('p');highest.className='auction-highest';highest.textContent=a.highestBid!=null?'Höchstgebot: '+format(a.highestBid)+' Coins':'Noch keine Gebote';
     const timerLabel=document.createElement('div');timerLabel.className='muted';timerLabel.textContent='Verbleibende Zeit';
     const timer=document.createElement('div');timer.className='stat red';timer.id='auctionTimer';
-    card.append(status,title,price,highest,timerLabel,timer);
-    renderBidControls(card,a); $('auctions').replaceChildren(card);updateTimer();
+    overview.append(status,title,price,highest,timerLabel,timer);
+    const bidHeading=document.createElement('h4');bidHeading.textContent=myTeam?'Dein Gebot':'Auktion verfolgen';
+    const budgetInfo=document.createElement('p');budgetInfo.className='auction-budget';
+    budgetInfo.textContent=myTeam?myTeam.name+' · '+format(myTeam.budget)+' Coins verfügbar':'Du schaust als Besucher zu. Gebote können Teamchefs abgeben.';
+    bidding.append(bidHeading,budgetInfo);
+    renderBidControls(bidding,a);
+    card.append(overview,bidding); $('auctions').replaceChildren(card);updateTimer();
   } catch(e) {console.error('Auktion konnte nicht geladen werden:',e);notice('Auktion konnte nicht geladen werden: '+e.message);}
   finally {auctionLoading=false;}
 }
@@ -252,6 +259,21 @@ $('createAuction').addEventListener('submit',async event=>{
   catch(e){notice('Auktion konnte nicht gestartet werden: '+e.message);}
   finally{button.disabled=false;}
 });
+const auctionDialog = $('auctionDialog');
+function openAuctionWindow(event) {
+  event?.preventDefault();
+  if ($('app').classList.contains('hidden')) {
+    notice('Melde dich mit Discord an, um Auktionen anzusehen.');
+    $('login').focus();
+    return;
+  }
+  $('auctionNotice').textContent = '';
+  if (!auctionDialog.open) auctionDialog.showModal();
+  loadAuction();
+}
+$('openAuction').addEventListener('click', openAuctionWindow);
+document.querySelector('a[href="#auction-section"]').addEventListener('click', openAuctionWindow);
+$('closeAuction').addEventListener('click', () => auctionDialog.close());
 setInterval(updateTimer,1000);
 setInterval(()=>{if(token&&!bidPending)loadAuction();},3000);
 boot();
