@@ -71,6 +71,13 @@ async function loadTeams() {
       'Racing Bulls': ['VCARB', '#6692ff'], 'Red Bull': ['RBR', '#3671c6'],
       Williams: ['W', '#64c4ff']
     };
+    // Official Formula 1 team directory image sources; no session data is sent.
+    const logoSlugs = {
+      Alpine: 'alpine', 'Aston Martin': 'astonmartin', Audi: 'audi',
+      Cadillac: 'cadillac', Ferrari: 'ferrari', Haas: 'haasf1team',
+      McLaren: 'mclaren', Mercedes: 'mercedes', 'Racing Bulls': 'racingbulls',
+      'Red Bull': 'redbullracing', Williams: 'williams'
+    };
     const element = (tag, className, text) => {
       const node = document.createElement(tag);
       node.className = className;
@@ -79,12 +86,28 @@ async function loadTeams() {
     };
     const initials = name => String(name || '').trim().split(/\s+/u).filter(Boolean).slice(0, 2).map(word => Array.from(word)[0]).join('').toUpperCase() || '–';
     for (const team of data.teams || []) {
-      const [code, color] = identities[team.name] || [initials(team.name), '#ff3c51'];
+      const [, color] = identities[team.name] || [initials(team.name), '#ff3c51'];
       const card = element('article', 'card team-profile');
       card.style.setProperty('--team-color', color);
       const header = element('header', 'team-profile-header');
-      const mark = element('div', 'team-wordmark', code);
-      mark.setAttribute('aria-hidden', 'true');
+      const mark = element('div', 'team-logo-slot');
+      const slug = logoSlugs[team.name];
+      if (slug) {
+        const logo = element('img', 'team-logo');
+        logo.alt = team.name + ' Logo';
+        logo.width = 176;
+        logo.height = 72;
+        logo.loading = 'lazy';
+        logo.decoding = 'async';
+        logo.referrerPolicy = 'no-referrer';
+        logo.addEventListener('error', () => {
+          mark.replaceChildren(element('span', 'team-logo-fallback', team.name));
+        }, { once: true });
+        logo.src = 'https://media.formula1.com/image/upload/c_lfill,w_192/q_auto/v1740000001/common/f1/2026/' + slug + '/2026' + slug + 'logowhite.webp';
+        mark.append(logo);
+      } else {
+        mark.append(element('span', 'team-logo-fallback', team.name));
+      }
       const identity = element('div', 'team-identity');
       identity.append(element('p', 'team-kicker', 'RACING LEAGUE'), element('h3', 'team-name', team.name));
       header.append(mark, identity);
