@@ -148,47 +148,36 @@ footer{font-size:12px;color:#9699a2}
 @media(prefers-reduced-motion:reduce){#teams .card,button{transition:none}}
 
 
-/* Teamkarten – Motorsport */
-#teams{gap:22px;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr))}
-#teams .card{
-  isolation:isolate;position:relative;display:flex;flex-direction:column;
-  min-height:300px;padding:28px 25px 24px;
-  border:1px solid #303238;border-top:4px solid var(--team-color);
-  border-radius:2px 22px 2px 2px;
-  background:linear-gradient(145deg,#202228 0%,#101114 65%);
-  box-shadow:0 10px 24px #0003;transition:border-color .2s,box-shadow .2s;
-}
-#teams .card:before{
-  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
-  background:linear-gradient(135deg,var(--team-color),transparent 55%);opacity:.09;
-}
-#teams .card:after{
-  content:"";position:absolute;right:22px;top:24px;width:50px;height:18px;
-  background:repeating-linear-gradient(115deg,transparent 0 7px,var(--team-color) 7px 12px);
-  opacity:.7;pointer-events:none;
-}
-#teams .card:hover{transform:none;border-color:var(--team-color);box-shadow:0 12px 30px #0005}
-#teams .card h3{
-  max-width:calc(100% - 55px);margin:7px 0 32px;
-  font-size:clamp(23px,2.4vw,30px);line-height:1.05;
-  font-weight:850;font-style:italic;text-transform:uppercase;letter-spacing:-.8px;overflow-wrap:anywhere;
-}
-#teams .card > .muted{margin:0 0 7px;font-size:10px;letter-spacing:1.6px;color:#b1b5bf;font-weight:600}
-#teams .card .stat{
-  margin:0;font-size:clamp(23px,2.3vw,32px);font-weight:800;
-  line-height:1.25;letter-spacing:-1px;white-space:normal;color:var(--team-color);
-}
-#teams .coin-unit{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b1b5bf;font-weight:600;vertical-align:middle}
-#teams .team-squad{flex:1}
-#teams .team-squad > .muted:first-child{font-size:10px;letter-spacing:1.6px;color:#b1b5bf;font-weight:600;margin:0 0 14px}
-#teams .team-squad > .muted:last-child:not(:first-child){font-size:13px;text-transform:none;letter-spacing:0;line-height:1.6;color:#969ca8;margin:0}
-#teams .team-driver{
-  display:flex;align-items:center;gap:10px;padding:9px 11px;
-  background:#ffffff04;border-left:2px solid var(--team-color);
-  font-size:14px;line-height:1.5;font-weight:600;overflow-wrap:anywhere;
-}
-@media(max-width:640px){#teams{gap:16px}#teams .card{min-height:280px;padding:24px}#teams .card h3{font-size:28px}#teams .card .stat{font-size:30px}}
-@media(prefers-reduced-motion:reduce){#teams .card{transition:none}}
+/* Teamprofile – Editorial Motorsport */
+#teams{gap:24px;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));align-items:stretch}
+#teams .team-profile{position:relative;isolation:isolate;display:flex;flex-direction:column;min-width:0;min-height:460px;padding:0;border:1px solid #34363b;border-radius:0;background:#17191c;box-shadow:none;overflow:hidden;transition:border-color 180ms}
+#teams .team-profile:before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--team-color);pointer-events:none}
+#teams .team-profile:after{display:none}
+#teams .team-profile:hover{transform:none;border-color:var(--team-color);box-shadow:none}
+.team-profile-header{padding:32px 26px 25px;min-height:210px;display:flex;flex-direction:column;justify-content:space-between;gap:26px;border-bottom:1px solid #34363b}
+.team-wordmark{align-self:flex-start;position:relative;font-family:Arial,Helvetica,sans-serif;font-size:48px;font-weight:900;font-style:italic;letter-spacing:-3px;line-height:1;color:#f2f3f5;padding-right:20px}
+.team-wordmark:after{content:"";position:absolute;right:0;top:4px;width:4px;height:36px;transform:skew(-18deg);background:var(--team-color)}
+.team-kicker{margin:0 0 7px;color:#a5aab4;font-size:9px;font-weight:600;letter-spacing:2px}
+#teams .team-profile h3{max-width:none;font-size:28px;line-height:1.1;font-weight:800;font-style:normal;text-transform:uppercase;letter-spacing:-1px;margin:0;overflow-wrap:anywhere}
+.team-details{margin:0;padding:0 26px}
+.team-owner{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:18px 0;border-bottom:1px solid #34363b}
+.team-details dt{font-size:11px;color:#acb1bb;line-height:1.5}
+.team-owner dd{margin:0;font-size:13px;font-weight:500;text-align:right;overflow-wrap:anywhere;min-width:0}
+.team-budget{padding:20px 0 24px}
+#teams .team-profile .stat{margin:9px 0 0;display:flex;align-items:baseline;flex-wrap:wrap;gap:10px;color:#f3f4f6;font-size:clamp(26px,2.5vw,34px);font-weight:700;line-height:1.2;letter-spacing:-1px;white-space:normal;overflow-wrap:anywhere}
+#teams .team-profile .coin-unit{font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:#b2b7c0}
+#teams .team-profile .team-squad{margin-top:auto;padding:19px 26px 24px;background:#121416;border-top:1px solid #34363b}
+.team-squad-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.team-squad-header h4{margin:0;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;color:#c2c6cf}
+.team-roster-count{font-size:11px;font-variant-numeric:tabular-nums;color:#acb1bb}
+.team-roster{list-style:none;padding:0;margin:0}
+#teams .team-driver{display:flex;align-items:center;gap:12px;margin:0;padding:10px 0;background:none;border:0;border-top:1px solid #292c31;font-size:14px;line-height:1.4}
+#teams .team-driver:first-child{border-top:0;padding-top:0}
+.driver-initials{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:32px;height:32px;border:1px solid #3e424a;border-left:2px solid var(--team-color);font-size:10px;font-weight:650;letter-spacing:.4px;color:#e1e4ea}
+.driver-name{min-width:0;overflow-wrap:anywhere}
+.team-empty{margin:0;min-height:32px;font-size:13px;line-height:1.6;color:#a5aab4}
+@media(max-width:640px){#teams{gap:20px}.team-profile-header{padding:28px 23px 23px}.team-details{padding:0 23px}#teams .team-profile .team-squad{padding:19px 23px 23px}}
+@media(prefers-reduced-motion:reduce){#teams .team-profile{transition:none}}
 
 </style>
 </head>
@@ -221,5 +210,5 @@ footer{font-size:12px;color:#9699a2}
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-teams"></script>
+<script type="module" src="app.js?v=20261110-profiles"></script>
 </body></html>
