@@ -23,6 +23,37 @@ main{max-width:1450px;margin:auto;padding:30px 34px 65px}.hero{position:relative
 @media(max-width:1000px){.sidebar{width:76px;padding:25px 10px}.sidebar .brand{font-size:0;padding:8px 0 26px;text-align:center}.sidebar .brand:before{content:'F1';font-size:22px;color:var(--red)}.nav-label,.nav-text,.side-bottom{display:none}.nav-link{justify-content:center;padding:13px 8px}.nav-icon{width:auto}.page{margin-left:76px}.topbar{padding:0 22px}main{padding:23px 22px 50px}}
 @media(max-width:640px){.sidebar{position:static;width:auto;height:auto;padding:10px 12px;flex-direction:row;align-items:center;overflow-x:auto;gap:5px}.sidebar .brand{font-size:17px;padding:0 10px 0 0}.sidebar .brand:before{display:none}.nav-link{padding:9px 12px;margin:0;white-space:nowrap}.nav-text{display:inline;font-size:12px}.nav-icon{font-size:15px}.page{margin:0}.topbar{height:auto;min-height:74px;padding:12px 15px;flex-wrap:wrap}.top-heading{font-size:17px}.top-sub{font-size:11px}.account-pill{display:none}.account-actions button{padding:10px;font-size:12px}main{padding:16px 13px 45px}.hero{min-height:245px;padding:25px 21px}.hero:after{font-size:170px;bottom:-34px;right:15px}.hero h1{letter-spacing:-.7px}.summary-grid{grid-template-columns:1fr}.card{padding:19px}.section{font-size:20px}.bid-controls strong{min-width:145px;font-size:18px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}button,.nav-link{transition:none}}
+
+/* F1 Premium – Teamkarten */
+#teams .card {
+  position: relative;
+  overflow: hidden;
+  border-top: 4px solid var(--team-color, #ff3c51);
+  background: linear-gradient(
+    145deg,
+    var(--team-glow, #20232d),
+    #11151e 75%
+  );
+  transition: transform .2s, box-shadow .2s;
+}
+
+#teams .card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px #0006;
+}
+
+#teams .card h3 {
+  font-size: 23px;
+  margin-bottom: 22px;
+}
+
+#teams .card .stat {
+  font-size: clamp(20px, 2.2vw, 28px);
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+  color: var(--team-color, #ff3c51);
+}
+
 </style>
 </head>
 <body>
