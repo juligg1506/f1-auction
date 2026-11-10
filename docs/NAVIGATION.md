@@ -1,6 +1,6 @@
-Die Navigation zeigt eigene Ansichten über URL-Fragmente: #dashboard, #rennergebnisse, #teams und #administration. Alte Anker für Ergebnisse, Teams und Administration bleiben gültig. Die Live-Auktion ist eine eigene Ansicht unter `#auktionen`, erreichbar über das Menü und den Dashboard-Zugang. Der alte Anker `#auction-section` führt ebenfalls dorthin. Dialoge sind außerhalb der ausgeblendeten Ansichten angeordnet.
+Die Navigation zeigt eigene Ansichten über URL-Fragmente: #dashboard, #rennergebnisse, #teams und #administration. Alte Anker für Ergebnisse, Teams und Administration bleiben gültig. Die Live-Auktion ist eine eigene Ansicht unter `#auktionen`, erreichbar über das Menü. Der alte Anker `#auction-section` führt ebenfalls dorthin. Dialoge sind außerhalb der ausgeblendeten Ansichten angeordnet.
 
-Die Ergebnisansicht enthält Rennen, Fahrerwertung und Teamwertung. Dashboard zeigt Team-/Kontoinformationen, den Auktionszugang und letzte Transfers. Teams und Administration liegen in ihren eigenen Ansichten. Nicht-Admins erhalten keinen Admin-Menüpunkt; die API-Berechtigungen bleiben bestehen.
+Die Ergebnisansicht enthält Rennen, Fahrerwertung und Teamwertung. Dashboard zeigt Team-/Kontoinformationen und letzte Transfers. Teams und Administration liegen in ihren eigenen Ansichten. Nicht-Admins erhalten keinen Admin-Menüpunkt; die API-Berechtigungen bleiben bestehen.
 
 Neuladen und Browser-Zurück/Vorwärts erhalten die Ansicht. Ein gewähltes Ziel wird für den Discord-Login in sessionStorage festgehalten und nach dem OAuth-Callback wiederhergestellt. Öffentliche Seiten müssen weiterhin zunächst über Discord angemeldet werden, wie bisher.
 

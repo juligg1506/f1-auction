@@ -44,7 +44,7 @@ async def main():
    await page.route('**/app.js?*',lambda r:r.fulfill(content_type='text/javascript',body=js+'\nwindow.refreshAuction=loadAuction;'))
    await page.route('https://media.formula1.com/**',lambda r:r.abort())
    await page.goto('https://juligg1506.github.io/f1-auction/',wait_until='networkidle')
-   await page.locator('#openAuction').click()
+   await page.locator('[data-view-link=auktionen]').click()
    if mode=='legacy':
     assert await page.locator('#queueSection').is_hidden()
     assert 'nicht verfügbar' in await page.locator('.bid-history').inner_text()

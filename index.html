@@ -310,10 +310,7 @@ body:has(#auctionPage:not([hidden])) #notice,body:has(#auctionPage:not([hidden])
 <section id="guest" class="card"><div class="tiny-rule"></div><h2>Der Fahrermarkt deiner Liga</h2><p class="muted">Melde dich mit Discord an, um Fahrerauktionen, Teams und Gebote zu sehen. Zuschauer können ohne Teamrolle mitlesen.</p></section>
 <div id="app" class="hidden">
 <div class="grid summary-grid" data-page-view="dashboard"><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
-<section id="auction-section" class="auction-launcher" data-page-view="dashboard">
-<div><p class="metric-label">FAHRERMARKT</p><h2>Live-Auktion</h2><p class="muted">Fahrer, Gebote und Countdown in einer großen Übersicht.</p></div>
-<button id="openAuction" type="button">Zur Auktion <span aria-hidden="true">↗</span></button>
-</section>
+
 <section id="auctionPage" data-page-view="auctions" hidden aria-labelledby="auctionPageTitle"><header class="auction-page-header"><h2 id="auctionPageTitle">Live-Auktionen</h2><p class="muted">Aktuelle Fahrerauktion und Gebotsverlauf.</p></header><p id="auctionNotice" role="status" aria-live="polite"></p><div id="auctions" class="grid"></div></section>
 <section id="results-section" data-page-view="results" hidden><h2 class="section">Rennergebnisse</h2>
 <form id="raceFilter" class="race-filter"><label>Saison / Meisterschaft<input id="raceSeason" name="season" list="raceSeasons" maxlength="40" required><datalist id="raceSeasons"></datalist></label><button type="submit" class="outline">Anzeigen</button></form>
@@ -334,7 +331,7 @@ body:has(#auctionPage:not([hidden])) #notice,body:has(#auctionPage:not([hidden])
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-auction-page-v1"></script>
+<script type="module" src="app.js?v=20261110-dashboard-clean"></script>
 </body></html>
 
 

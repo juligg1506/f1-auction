@@ -301,7 +301,6 @@ $('createAuction').addEventListener('submit',async event=>{
   catch(e){notice('Auktion konnte nicht gestartet werden: '+e.message);}
   finally{button.disabled=false;}
 });
-$('openAuction').addEventListener('click', () => navigateTo('auktionen'));
 setInterval(updateTimer,1000);
 setInterval(()=>{if(token&&!bidPending)loadAuction();},3000);
 const ui = (tag, cls, text) => { const e = document.createElement(tag); e.className = cls; if (text !== undefined) e.textContent = text; return e; };
