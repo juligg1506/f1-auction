@@ -167,10 +167,6 @@ if (discordTeam) {
         // Fragment never goes to GitHub Pages server. Frontend immediately removes it.
         return redirect(FRONTEND + '#session=' + sessionToken, { 'Set-Cookie': cookie('', 0), 'Referrer-Policy': 'no-referrer' });
       }
-      // Guests can only read dashboard data; member pages require a valid Discord session.
-      const memberRead = ['/api/drivers','/api/teams','/api/auctions','/api/transfers','/api/races'].includes(path)
-        || /^\/api\/(drivers|races)\/\d+$/.test(path);
-      if (request.method === 'GET' && memberRead && !await getSession(request, env)) return safeError('Bitte mit Discord anmelden', 401);
       if (path === '/api/drivers' && request.method === 'GET') {
   const result = await env.DB.prepare(`
     SELECT id, name
@@ -232,7 +228,8 @@ if (path === '/api/auctions' && request.method === 'GET') {
         const session = await getSession(request, env);
         if (!session) return safeError('Not authenticated', 401);
         const team = await env.DB.prepare('SELECT id, name, budget FROM teams WHERE owner_discord_id = ?').bind(session.discordId).first();
-        return json({ discordId: session.discordId, username: session.username, admin: session.admin, team }, 200, cors);
+        const driver = await env.DB.prepare('SELECT id, name FROM drivers WHERE discord_id = ?').bind(session.discordId).first();
+        return json({ discordId: session.discordId, username: session.username, admin: session.admin, team, driver: driver || null }, 200, cors);
       }
       if (path === '/api/logout' && request.method === 'POST') {
         const session = await getSession(request, env);
@@ -430,10 +427,15 @@ try {
 }
 
 if (path === '/api/features' && request.method === 'GET') {
-  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
+  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, guestReadOnly: true, driverStatistics: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
 }
 if (path === '/api/transfers' && request.method === 'GET') {
   return json({ transfers: await transferHistory(env) }, 200, cors);
+}
+if(path==='/api/driver-stats'&&request.method==='GET'){
+  const season=(url.searchParams.get('season')||String(new Date().getUTCFullYear())).trim();
+  if(!season||season.length>40)return safeError('Ungültige Saison',400);
+  return json(await driverStatistics(env,season),200,cors);
 }
 const driverMatch = /^\/api\/drivers\/(\d+)$/.exec(path);
 if (driverMatch && request.method === 'GET') {
@@ -443,7 +445,11 @@ if (driverMatch && request.method === 'GET') {
     t.name AS teamName, d.discord_active AS active FROM drivers d
     LEFT JOIN teams t ON t.id = d.team_id WHERE d.id = ?`).bind(id).first();
   if (!driver) return safeError('Fahrer nicht gefunden', 404);
-  return json({ driver, transfers: await transferHistory(env, id) }, 200, cors);
+  const season=(url.searchParams.get('season')||String(new Date().getUTCFullYear())).trim();
+  if(!season||season.length>40)return safeError('Ungültige Saison',400);
+  const all=await driverStatistics(env,season);
+  const statistics=all.drivers.find(row=>row.id===id)?.statistics||summarizeDriver([]);
+  return json({ driver, season, seasons:all.seasons, statistics, raceResults:await driverRaceHistory(env,id,season), transfers:await transferHistory(env,id) },200,cors);
 }
 if (path.startsWith('/api/admin/queue')) {
   const session = await getSession(request, env);
@@ -774,3 +780,31 @@ function buildStandings(rows, kind) {
   return list.map((item,i) => { item.rank = i && compare(item,list[i-1]) === 0 ? list[i-1].rank : i+1; return { id: item.id, name: item.name, points: item.points, wins: item.wins, rank: item.rank }; });
 }
 
+
+
+async function driverStatistics(env, season) {
+  const results=await env.DB.batch([
+    env.DB.prepare(`SELECT d.id, d.name, d.team_id AS teamId, t.name AS teamName, d.discord_active AS active
+      FROM drivers d LEFT JOIN teams t ON t.id=d.team_id
+      WHERE d.discord_active=1 OR EXISTS (SELECT 1 FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE rr.driver_id=d.id AND r.status='published') ORDER BY d.name`),
+    env.DB.prepare(`SELECT rr.driver_id AS driverId,rr.driver_name AS driverName,rr.team_id AS teamId,rr.team_name AS teamName,rr.position,rr.status,rr.points
+      FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE r.status='published' AND r.season=? ORDER BY r.race_date,r.id`).bind(season),
+    env.DB.prepare("SELECT DISTINCT season FROM races WHERE status='published' ORDER BY season DESC")
+  ]);
+  const ranks=new Map(buildStandings(results[1].results,'driver').map(row=>[row.id,row.rank]));
+  const grouped=new Map();for(const row of results[1].results){if(!grouped.has(row.driverId))grouped.set(row.driverId,[]);grouped.get(row.driverId).push(row);}
+  return {season,seasons:results[2].results.map(row=>row.season),drivers:results[0].results.map(driver=>({...driver,statistics:summarizeDriver(grouped.get(driver.id)||[],ranks.get(driver.id)||null)}))};
+}
+function summarizeDriver(rows, rank=null) {
+  const classified=rows.filter(row=>row.status==='classified'&&row.position!==null),positions=classified.map(row=>row.position);
+  return {entries:rows.length,starts:rows.filter(row=>row.status!=='dns').length,points:rows.reduce((sum,row)=>sum+row.points,0),
+    wins:positions.filter(p=>p===1).length,podiums:positions.filter(p=>p<=3).length,top10:positions.filter(p=>p<=10).length,
+    classified:classified.length,retirements:rows.filter(row=>row.status==='dnf').length,dns:rows.filter(row=>row.status==='dns').length,
+    disqualifications:rows.filter(row=>row.status==='dsq').length,bestFinish:positions.length?Math.min(...positions):null,
+    averageFinish:positions.length?Math.round(positions.reduce((sum,p)=>sum+p,0)/positions.length*10)/10:null,rank};
+}
+async function driverRaceHistory(env,id,season) {
+ return (await env.DB.prepare(`SELECT r.id AS raceId,r.name AS raceName,r.race_date AS raceDate,rr.team_name AS teamName,rr.position,rr.status,rr.points
+   FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE rr.driver_id=? AND r.status='published' AND r.season=?
+   ORDER BY r.race_date DESC,r.id DESC LIMIT 50`).bind(id,season).all()).results;
+}

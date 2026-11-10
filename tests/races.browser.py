@@ -75,23 +75,24 @@ async def main():
    await page.locator('#createRace button').click()
    await expect(page.locator('#raceCreateNotice')).to_contain_text('bereits vorhanden')
    assert not errors,errors
-   await context.close()
+   await page.unroute_all(behavior='ignoreErrors');await context.close()
    print(width,'PASS actual worker: draft/create/edit/publish, driver/team persistence, duplicates, points, mobile scrolling',flush=True)
   context,page,errors=await setup(390,'viewer')
   await page.locator('[data-view-link=rennergebnisse]').click()
   await expect(page.locator('#raceCreateSection')).to_be_hidden()
   await expect(page.locator('.race-list-row').first.locator('button')).to_have_text('Ergebnisse ansehen')
-  await page.locator('.race-list-row').first.locator('button').click()
+  await page.locator('.race-list-row').filter(has=page.get_by_role('heading',name='Browser-Test 320',exact=True)).locator('button').click()
   await expect(page.locator('#raceDialogBody tbody tr')).to_have_count(2)
   assert await page.locator('#publishRace').count()==0
   await page.keyboard.press('Escape');await expect(page.locator('#raceDialog')).not_to_be_visible()
   assert not errors,errors
-  await context.close()
+  await page.unroute_all(behavior='ignoreErrors');await context.close()
   context,page,errors=await setup(820,'admin',True)
   await expect(page.locator('#raceCreateSection')).to_be_hidden()
   await expect(page.locator('#raceList')).to_have_text('Noch keine Rennergebnisse verfügbar.')
   assert not errors,errors
-  await context.close();await browser.close()
+  await page.unroute_all(behavior='ignoreErrors');await context.close();await browser.close()
   print('PASS spectator read-only and old-worker fallback',flush=True)
 asyncio.run(main())
+
 

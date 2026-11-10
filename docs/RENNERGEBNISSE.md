@@ -2,7 +2,7 @@
 
 ## Umfang
 
-Admins können Rennen als Entwurf anlegen, Fahrer und ihre Rennteams eintragen, veröffentlichen, korrigieren und wieder als Entwurf speichern. Angemeldete Zuschauer sehen veröffentlichte Ergebnisse und Fahrer-/Teamwertungen. Bestehende Auktionen, Budgets, Discord-Ankündigungen und Teamzuordnungen bleiben erhalten.
+Admins können Rennen als Entwurf anlegen, Fahrer und ihre Rennteams eintragen, veröffentlichen, korrigieren und wieder als Entwurf speichern. Gäste und angemeldete Zuschauer sehen veröffentlichte Ergebnisse und Fahrer-/Teamwertungen. Bestehende Auktionen, Budgets, Discord-Ankündigungen und Teamzuordnungen bleiben erhalten.
 
 Punkte für klassifizierte Plätze 1–10: **25, 18, 15, 12, 10, 8, 6, 4, 2, 1**. Keine Zusatzpunkte und kein separates Sprint-Punktesystem. DNF, DNS und DSQ sind ohne Platz und erhalten null Punkte. Soll ein ausgeschiedener Fahrer dennoch klassifiziert werden, wird er mit „Klassifiziert“ und seiner offiziellen Platzierung eingetragen.
 
@@ -32,7 +32,7 @@ Keine Live-Testdaten wurden durch die Entwicklung eingetragen. Die Race-API wurd
 
 ## Neue Routen
 
-Für angemeldete Nutzer: `GET /api/races?season=2026`, `GET /api/races/:id`. Öffentlich für das Dashboard: `GET /api/standings?season=2026` und `GET /api/calendar?season=2026`. Entwurfsergebnisse bleiben privat; Kalenderdaten eines Entwurfs können separat freigegeben werden. Siehe [OEFFENTLICHES_DASHBOARD.md](OEFFENTLICHES_DASHBOARD.md).
+Öffentlich lesbar für den Gastzugang: `GET /api/races?season=2026`, `GET /api/races/:id`. Für das Dashboard: `GET /api/standings?season=2026` und `GET /api/calendar?season=2026`. Entwurfsergebnisse bleiben privat; Kalenderdaten eines Entwurfs können separat freigegeben werden. Siehe [OEFFENTLICHES_DASHBOARD.md](OEFFENTLICHES_DASHBOARD.md).
 
 Nur Admin: `GET /api/admin/races/options`, `GET /api/admin/races?season=2026`, `GET /api/admin/races/:id`, `POST /api/admin/races` (Entwurf anlegen), `POST /api/admin/races/:id` (vollständige Ergebnisliste mit Header, Status und Revision speichern).
 
@@ -45,4 +45,5 @@ Für den integrierten Browsertest im ersten Terminal `node tests/integration-ser
 ## Rückweg
 
 Bei Problemen die vorherige Cloudflare-Worker-Version wieder aktivieren. Neue Tabellen zunächst belassen. Das Frontend erkennt den bisherigen Worker ohne Ergebnisfunktion und blendet die Eingabe aus; Auktionen funktionieren weiter. Ein kompletter Datenbank-Restore würde auch andere seit dem Bookmark erfolgte Änderungen zurücksetzen und ist kein regulärer Schritt dieser Erweiterung.
+
 

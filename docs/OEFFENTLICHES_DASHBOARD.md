@@ -1,6 +1,6 @@
 # Öffentliches Dashboard und Rennkalender
 
-Ohne Anmeldung ist ausschließlich das Dashboard erreichbar. Das Menü und die URL-Navigation blockieren alle Mitgliederansichten. Die API verlangt eine gültige Discord-Session für Teams, Fahrerprofile, Auktionen, Transfers und Rennergebnisdetails. Öffentlich bleiben `/api/standings`, `/api/calendar`, `/api/features` und die OAuth-Anmeldung. Abgelaufene Sessions ziehen den Zugriff auf Mitgliederansichten unmittelbar zurück und schließen offene Dialoge.
+**Aktuelle Zugangsregel:** Vor dem Einstieg erscheint nur die Anmeldeauswahl. Nach „Als Gast fortfahren“ sind alle öffentlichen Ansichten lesbar, auch Auktionen, Teams, Ergebnisdetails und Statistiken. Schreib-/Adminzugriffe bleiben geschützt. Die folgende Kalender- und Dashboardbeschreibung gilt unverändert; siehe [FAHRERSTATISTIKEN.md](FAHRERSTATISTIKEN.md) für den erweiterten Gastzugang.
 
 Das Dashboard lädt Fahrer- und Teamwertungen sowie den Kalender für ein Saison-/Meisterschaftslabel. Es nutzt denselben Punktestand wie die Ergebnisansicht. Bei fehlenden veröffentlichten Ergebnissen oder Terminen erscheinen leere Zustände statt Beispieldaten. Alle Daten werden beim Öffnen des Dashboards, Saisonwechsel, Rückkehr zum Browser-Tab und ungefähr jede Minute aktualisiert. Eine teilweise nicht erreichbare API verhindert nicht die Anzeige der anderen Daten.
 
@@ -14,7 +14,7 @@ Beim Anlegen neuer Rennen ist die sichtbare Kalender-Checkbox vorausgewählt. Be
 
 Vorher einen D1-Time-Travel-Bookmark und die aktive Worker-Version sichern. Schema mit `PRAGMA table_info(races)` prüfen. Anschließend Migration `003_public_calendar.sql` **einmalig** ausführen und den aktuellen Worker deployen. Wenn die Spalte bereits existiert, nur den `CREATE INDEX IF NOT EXISTS`-Teil ausführen. Voraussetzung sind Migrationen 001 und 002. Es werden keine Budgets, Ergebnisse oder Auktionsdatensätze zurückgesetzt. Bindings, Secrets, Discord-Kanal und Cron-Trigger beibehalten.
 
-Der neue Worker meldet `publicDashboard: true` und `raceCalendar: true` in `/api/features`. Ohne Bearer-Token müssen `/api/standings?season=2026` und `/api/calendar?season=2026` 200 liefern, Mitglieder-Endpunkte dagegen 401.
+Der neue Worker meldet `publicDashboard: true` und `raceCalendar: true` in `/api/features`. Ohne Bearer-Token müssen `/api/standings?season=2026` und `/api/calendar?season=2026` 200 liefern, `/api/me` und `/api/admin/*` dagegen 401.
 
 ## Prüfungen
 
@@ -23,3 +23,4 @@ Der neue Worker meldet `publicDashboard: true` und `raceCalendar: true` in `/api
 - Browser: 1440, 820, 390 und 320 Pixel; Daten ohne Login, nur ein Menüpunkt, direkte Mitglieder-Links, leere Saison, Kalenderfreigabe und -rücknahme, angemeldete Direktlinks und Sessionablauf.
 
 Ein Zurücksetzen auf den vorherigen Worker kann die zusätzliche Kalenderspalte belassen. Der öffentliche Kalender ist dann nicht verfügbar; die alte API-Policy gilt wieder. Ein Datenbank-Restore ist kein normaler Rollout-Schritt.
+

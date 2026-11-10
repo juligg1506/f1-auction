@@ -156,7 +156,7 @@ console.log('ALL AUCTION AND RACE WORKER TESTS PASSED');
 export {worker, env, ctx, drain};
 
 
-for(const path of ['/api/teams','/api/drivers','/api/auctions','/api/transfers','/api/races','/api/races/1','/api/drivers/1'])assert.equal((await request(path,null)).status,401);
+for(const path of ['/api/teams','/api/drivers','/api/auctions','/api/transfers','/api/races','/api/races/1','/api/drivers/1'])assert.equal((await request(path,null)).status,200);
 assert.equal((await request('/api/standings?season=2026',null)).status,200);
 let calendar=(await request('/api/calendar?season=2026',null)).body;
 assert.equal(calendar.calendar.length,2);assert.ok(calendar.calendar.every(row=>row.status==='published'));
@@ -176,4 +176,31 @@ assert.equal((await request('/api/admin/races/4','admin',{...plannedEdit,revisio
 assert.equal((await request('/api/calendar?season=2026',null)).body.calendar.length,2);
 assert.equal((await request('/api/calendar?season=2027',null)).body.calendar.length,0);
 assert.ok((await request('/api/calendar?season=2026',null)).body.calendar.every(row=>!('results' in row)&&!('revision' in row)&&!('created_by' in row)));
-console.log('PASS guest member-data guards, public standings/calendar, explicit draft calendar consent, calendar privacy and no draft points');
+console.log('PASS public standings/calendar, explicit draft calendar consent, calendar privacy and no draft points');
+
+
+let stats=(await request('/api/driver-stats?season=2026',null)).body;
+let theo=stats.drivers.find(row=>row.id===1).statistics;
+assert.deepEqual({points:theo.points,starts:theo.starts,wins:theo.wins,podiums:theo.podiums,best:theo.bestFinish,average:theo.averageFinish,rank:theo.rank},{points:33,starts:2,wins:0,podiums:2,best:2,average:2.5,rank:1});
+assert.equal((await request('/api/drivers/1?season=2026',null)).body.raceResults.length,2);
+assert.equal((await request('/api/drivers/1?season=2026',null)).body.statistics.points,33);
+assert.ok(!('discordId' in stats.drivers[0]));assert.ok(!('discord_id' in stats.drivers[0]));
+sql("UPDATE drivers SET discord_id='viewer' WHERE id=1");
+assert.equal((await request('/api/me','viewer')).body.driver.id,1);
+assert.equal((await request('/api/me?driverId=2','viewer')).body.driver.id,1);
+assert.equal((await request('/api/me',null)).status,401);
+assert.equal((await request('/api/me','other')).body.driver,null);
+sql("INSERT INTO drivers VALUES(3,'Test DSQ',NULL,'300',1),(4,'Test Neuling',NULL,'400',1)");
+const mixed={name:'Brasilien',season:'2026',raceDate:'2026-12-15',revision:3,status:'published',calendarVisible:false,results:[{driverId:1,teamId:2,position:null,status:'dnf'},{driverId:2,teamId:1,position:null,status:'dns'},{driverId:3,teamId:null,position:null,status:'dsq'}]};
+assert.equal((await request('/api/admin/races/4','admin',mixed)).status,200);
+stats=(await request('/api/driver-stats?season=2026',null)).body;
+theo=stats.drivers.find(row=>row.id===1).statistics;
+assert.equal(theo.starts,3);assert.equal(theo.retirements,1);assert.equal(theo.points,33);assert.equal(theo.averageFinish,2.5);
+const moritz=stats.drivers.find(row=>row.id===2).statistics;assert.equal(moritz.entries,2);assert.equal(moritz.starts,1);assert.equal(moritz.dns,1);
+const dsq=stats.drivers.find(row=>row.id===3).statistics;assert.equal(dsq.disqualifications,1);assert.equal(dsq.points,0);assert.equal(dsq.bestFinish,null);
+const newcomer=stats.drivers.find(row=>row.id===4).statistics;assert.equal(newcomer.starts,0);assert.equal(newcomer.rank,null);
+assert.ok((await request('/api/driver-stats?season=2027',null)).body.drivers.every(row=>row.statistics.points===0&&row.statistics.rank===null));
+for(const path of ['/api/auctions/bid','/api/admin/auctions','/api/admin/queue','/api/admin/queue/1/cancel','/api/admin/races','/api/admin/races/1'])assert.equal((await request(path,null,{})).status,401);
+for(const path of ['/api/admin/races','/api/admin/races/3','/api/admin/races/options','/api/admin/queue'])assert.equal((await request(path,null)).status,401);
+assert.equal((await request('/api/races/3',null)).status,404);
+console.log('PASS guest all public reads but no writes/admin/drafts, driver season statistics, DNF/DNS/DSQ, zero states and Discord-ID own profile mapping');
