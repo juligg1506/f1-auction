@@ -96,7 +96,7 @@ card.style.setProperty('--team-glow', '#1b202b');
 
       const balance = document.createElement('div');
       balance.className = 'stat red';
-      balance.textContent = format(team.budget) + ' Coins';
+      balance.innerHTML = `${format(team.budget)} <span class="coin-unit">Coins</span>`;
 
       card.append(title, label, balance);
       container.appendChild(card);
