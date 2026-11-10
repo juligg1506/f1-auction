@@ -68,6 +68,25 @@ async function loadTeams() {
       const card = document.createElement('div');
       card.className = 'card';
 
+const teamColors = {
+  'Ferrari': '#e8002d',
+  'Mercedes': '#27f4d2',
+  'McLaren': '#ff8000',
+  'Red Bull': '#3671c6',
+  'Racing Bulls': '#6692ff',
+  'Aston Martin': '#229971',
+  'Alpine': '#ff87bc',
+  'Williams': '#64c4ff',
+  'Haas': '#b6babd',
+  'Audi': '#f50537',
+  'Cadillac': '#d4af37'
+};
+
+const teamColor = teamColors[team.name] || '#ff3c51';
+
+card.style.setProperty('--team-color', teamColor);
+card.style.setProperty('--team-glow', '#1b202b');
+
       const title = document.createElement('h3');
       title.textContent = '🏎️ ' + team.name;
 
