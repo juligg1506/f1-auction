@@ -1,6 +1,6 @@
 # F1 Auction – Erweiterungen
 
-**Aktueller Hinweis:** `worker.js` enthält inzwischen auch Rennergebnisse. Vor dessen Veröffentlichung zusätzlich Migration `002_race_results.sql` anwenden; Ablauf und Regeln stehen in [RENNERGEBNISSE.md](RENNERGEBNISSE.md).
+**Aktueller Hinweis:** Das öffentliche Dashboard und die Kalenderfreigabe sind in [OEFFENTLICHES_DASHBOARD.md](OEFFENTLICHES_DASHBOARD.md) dokumentiert. `worker.js` enthält inzwischen auch Rennergebnisse. Vor dessen Veröffentlichung zusätzlich Migrationen `002_race_results.sql` und `003_public_calendar.sql` anwenden; Ablauf und Regeln stehen in [RENNERGEBNISSE.md](RENNERGEBNISSE.md).
 
 ## Stand
 
@@ -71,4 +71,5 @@ python3 tests/frontend.test.py
 ```
 
 Die Browserprüfung verwendet standardmäßig `/usr/bin/chromium`; `CHROMIUM_PATH` kann auf eine andere Chromium-Installation zeigen. Alle Schreibzugriffe und Discord-Aufrufe der Tests verwenden isolierte Daten bzw. Testantworten.
+
 

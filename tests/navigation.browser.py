@@ -39,7 +39,8 @@ async def main():
   c,page,errors=await setup(820,hash='#results-section');await expect(page).to_have_url('https://juligg1506.github.io/f1-auction/#rennergebnisse');await expect(page.locator('#results-section')).to_be_visible();await c.close()
   c,page,errors=await setup(820,logged=False,hash='#rennergebnisse');await expect(page.locator('#app')).to_be_hidden();await expect(page.locator('#guest')).to_be_visible()
   await page.route('**/auth/start',lambda r:r.fulfill(content_type='text/html',body='OAuth-Test'))
-  await page.locator('#login').click();await page.wait_for_url('**/auth/start');await page.goto('https://juligg1506.github.io/f1-auction/#session='+'a'*64,wait_until='networkidle');await expect(page.locator('#results-section')).to_be_visible();await expect(page).to_have_url('https://juligg1506.github.io/f1-auction/#rennergebnisse');assert not errors,errors;await c.close()
+  await page.locator('#login').click();await page.wait_for_url('**/auth/start');await page.goto('https://juligg1506.github.io/f1-auction/#session='+'a'*64,wait_until='networkidle');await expect(page.locator('#publicDashboard')).to_be_visible();await expect(page).to_have_url('https://juligg1506.github.io/f1-auction/#dashboard');assert not errors,errors;await c.close()
   await b.close();print('PASS admin access, old links, direct results link and OAuth return view',flush=True)
 asyncio.run(main())
+
 

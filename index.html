@@ -288,6 +288,32 @@ body:has(#driverDialog[open]){overflow:hidden}
 @media(max-width:640px){.auction-overview,.auction-bidding{padding:24px 20px}.auction-page-header h2{font-size:26px}#auctionPage .bid-controls{grid-template-columns:44px minmax(0,1fr) 44px;padding:12px 8px;gap:6px}#auctionPage .bid-controls strong{font-size:24px}#auctionPage .bid-history{padding:24px 20px}.bid-shortcuts button{font-size:11px}}
 
 body:has(#auctionPage:not([hidden])) #notice,body:has(#auctionPage:not([hidden])) #outbidAlert{display:none}
+/* Öffentliches Liga-Dashboard */
+.hero.dashboard-hero{min-height:0;padding:0;margin:0 0 25px;background:none;border:0;border-radius:0}
+.hero.dashboard-hero:before,.hero.dashboard-hero:after{display:none}
+.hero.dashboard-hero h1{font-size:clamp(28px,3.4vw,42px);font-style:normal;margin:9px 0 12px;font-weight:650;letter-spacing:-1px}
+.hero.dashboard-hero p{margin:0;color:#aab3c1;font-size:14px}
+#guest.guest-access-note{max-width:none;border:1px solid #30343c;border-left:3px solid var(--red);padding:15px 20px;margin:0 0 24px;background:#16191e;border-radius:4px}
+#guest.guest-access-note p{margin:0;max-width:none;font-size:13px;line-height:1.7;color:#b9c0cd}
+.summary-grid[data-auth-only]{margin-bottom:26px}
+#publicDashboard .standings-grid{margin-top:20px;margin-bottom:26px}
+.dashboard-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:20px}
+.dashboard-heading h2{font-size:22px;font-weight:600;letter-spacing:-.4px;margin:0}
+.dashboard-calendar>h2{font-size:22px;font-weight:600;letter-spacing:-.4px;margin:0 0 12px}
+.calendar-next{font-size:14px;line-height:1.6;color:#dce1eb;margin:0 0 20px}
+.calendar-list{list-style:none;padding:0;margin:0}
+.calendar-entry{display:flex;align-items:center;gap:20px;border-top:1px solid var(--stroke);padding:20px 0;margin:0}
+.calendar-entry:first-child{border-top:0;padding-top:0}.calendar-entry:last-child{padding-bottom:0}
+.calendar-date{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:58px;min-height:65px;flex-shrink:0;background:#101216;border:1px solid #343943;border-radius:4px;font-variant-numeric:tabular-nums}
+.calendar-date strong{font-size:24px;line-height:1;font-weight:650}.calendar-date span{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#b2bbc9}
+.calendar-entry-next .calendar-date{border-left:3px solid var(--red)}
+.calendar-race{min-width:0;flex:1}.calendar-race h3{font-size:17px;font-weight:600;margin:0 0 6px;overflow-wrap:anywhere}.calendar-race p{font-size:12px;margin:0;line-height:1.5}
+.calendar-status{font-size:11px;color:#aeb8c6;line-height:1.5;text-align:right}
+#publicDashboard>.race-filter{padding-bottom:6px}
+@media(max-width:640px){.calendar-entry{gap:14px;flex-wrap:wrap}.calendar-status{margin-left:72px;flex:0 0 calc(100% - 72px);margin-top:-6px;text-align:left}.calendar-race h3{font-size:15px}#guest.guest-access-note{padding:14px 16px}.calendar-date{width:54px}.dashboard-calendar.card{padding:20px}}
+
+.calendar-checkbox{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.6;margin:10px 0 20px}.calendar-checkbox input{display:inline;width:18px;min-height:18px;margin:2px 0 0;flex-shrink:0}
+#publicDashboard .standings-grid h2{font-size:20px;font-weight:600;margin:0 0 18px}
 </style>
 </head>
 <body>
@@ -295,22 +321,26 @@ body:has(#auctionPage:not([hidden])) #notice,body:has(#auctionPage:not([hidden])
  <div class="brand">F1 <span>AUCTION</span></div>
  <div class="nav-label">Racing League</div>
  <a class="nav-link active" href="#dashboard" data-view-link="dashboard" aria-label="Dashboard" title="Dashboard"><span class="nav-icon">▦</span><span class="nav-text">Dashboard</span></a>
- <a class="nav-link" href="#auktionen" data-view-link="auktionen" aria-label="Live-Auktionen" title="Live-Auktionen"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
- <a class="nav-link" href="#rennergebnisse" data-view-link="rennergebnisse" aria-label="Rennergebnisse" title="Rennergebnisse"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-text">Rennergebnisse</span></a>
- <a class="nav-link" href="#teams" data-view-link="teams" aria-label="Teams" title="Teams"><span class="nav-icon">▤</span><span class="nav-text">Teams</span></a>
+ <a class="nav-link" href="#auktionen" data-view-link="auktionen" hidden aria-label="Live-Auktionen" title="Live-Auktionen"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
+ <a class="nav-link" href="#rennergebnisse" data-view-link="rennergebnisse" hidden aria-label="Rennergebnisse" title="Rennergebnisse"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-text">Rennergebnisse</span></a>
+ <a class="nav-link" href="#teams" data-view-link="teams" hidden aria-label="Teams" title="Teams"><span class="nav-icon">▤</span><span class="nav-text">Teams</span></a>
  <a class="nav-link" href="#administration" data-view-link="administration" aria-label="Administration" title="Administration" hidden><span class="nav-icon">⚙</span><span class="nav-text">Administration</span></a>
  <div class="side-bottom">Racing League<br>Fahrerauktionen</div>
 </aside>
 <div class="page">
 <header class="topbar"><div><div class="top-heading">Fahrermarkt</div><div class="top-sub">Teams, Fahrer und Auktionen</div></div><div class="account-actions"><button id="login">Mit Discord anmelden</button><button id="logout" class="secondary hidden">Abmelden</button></div></header>
 <main id="dashboard">
-<section class="hero"><div class="hero-content"><div class="eyebrow">Racing League / Fahrermarkt</div><h1>Dein nächster Fahrer.<br><em>Dein nächstes Kapitel.</em></h1><p>Verfolge Auktionen, stelle deinen Kader zusammen und behalte dein Teambudget im Blick.</p></div></section>
+<section class="hero dashboard-hero" data-page-view="dashboard"><div class="hero-content"><div class="eyebrow">RACING LEAGUE</div><h1>Liga-Dashboard</h1><p>Aktuelle Wertungen und der Rennkalender deiner Liga.</p></div></section>
 <p id="outbidAlert" class="outbid-alert hidden" role="alert"></p>
 <p id="notice" role="status" aria-live="polite"></p>
-<section id="guest" class="card"><div class="tiny-rule"></div><h2>Der Fahrermarkt deiner Liga</h2><p class="muted">Melde dich mit Discord an, um Fahrerauktionen, Teams und Gebote zu sehen. Zuschauer können ohne Teamrolle mitlesen.</p></section>
+<section id="guest" class="guest-access-note" data-page-view="dashboard"><p>Melde dich mit Discord an, um Auktionen, Teams und Rennergebnisse zu öffnen.</p></section>
+<div class="grid summary-grid" data-page-view="dashboard" data-auth-only hidden><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
+<section id="publicDashboard" data-page-view="dashboard" aria-label="Wertungen und Rennkalender">
+<form id="dashboardFilter" class="race-filter"><label>Saison / Meisterschaft<input id="dashboardSeason" name="season" list="dashboardSeasons" maxlength="40" required><datalist id="dashboardSeasons"></datalist></label><button type="submit" class="outline">Anzeigen</button></form>
+<div class="standings-grid"><section class="card"><h2>Fahrerwertung</h2><div id="dashboardDrivers"><p class="muted">Wertung wird geladen …</p></div></section><section class="card"><h2>Teamwertung</h2><div id="dashboardTeams"><p class="muted">Wertung wird geladen …</p></div></section></div>
+<section class="card dashboard-calendar"><h2>Rennkalender</h2><p id="dashboardNextRace" class="calendar-next" hidden></p><div id="dashboardCalendar"><p class="muted">Rennkalender wird geladen …</p></div></section>
+</section>
 <div id="app" class="hidden">
-<div class="grid summary-grid" data-page-view="dashboard"><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
-
 <section id="auctionPage" data-page-view="auctions" hidden aria-labelledby="auctionPageTitle"><header class="auction-page-header"><h2 id="auctionPageTitle">Live-Auktionen</h2><p class="muted">Aktuelle Fahrerauktion und Gebotsverlauf.</p></header><p id="auctionNotice" role="status" aria-live="polite"></p><div id="auctions" class="grid"></div></section>
 <section id="results-section" data-page-view="results" hidden><h2 class="section">Rennergebnisse</h2>
 <form id="raceFilter" class="race-filter"><label>Saison / Meisterschaft<input id="raceSeason" name="season" list="raceSeasons" maxlength="40" required><datalist id="raceSeasons"></datalist></label><button type="submit" class="outline">Anzeigen</button></form>
@@ -326,13 +356,14 @@ body:has(#auctionPage:not([hidden])) #notice,body:has(#auctionPage:not([hidden])
 <form id="createTeam" class="card"><h3>Team erstellen</h3><label>Teamname<input name="name" required maxlength="60"></label><button type="submit">Erstellen</button></form>
 <form id="assignTeam" class="card"><h3>Teamchef zuweisen</h3><label>Discord-Benutzer-ID<input name="discordId" required pattern="[0-9]{15,25}"></label><label>Team<select name="teamId" id="teamSelect" required></select></label><button type="submit">Zuweisen</button></form>
 <form id="createAuction" class="card"><h3>🏎️ Fahrerauktion starten</h3><label>Fahrer<select name="driverId" id="auctionDriver" required><option value="">Fahrer auswählen</option></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><p class="muted">Gebotsschritt: 250.000 Coins</p><p class="muted">Auktionsdauer: 3 Minuten</p><button type="submit">Auktion starten</button></form>
-</div><section id="raceCreateSection" class="hidden"><h3>Rennen anlegen</h3><p class="muted">Zunächst als Entwurf anlegen. Ergebnisse werden erst nach der Veröffentlichung sichtbar und gewertet.</p><form id="createRace" class="card"><label>Rennen<input name="raceName" maxlength="120" placeholder="z. B. Großer Preis von Österreich" required></label><label>Saison / Meisterschaft<input id="newRaceSeason" name="raceSeason" maxlength="40" required></label><label>Renndatum<input name="raceDate" type="date" required></label><p id="raceCreateNotice" role="status" aria-live="polite"></p><button type="submit">Rennen als Entwurf anlegen</button></form></section><section id="queueSection" class="hidden"><h3>Auktionen planen</h3><p class="muted">Geplante Auktionen starten ab dem gewählten Termin, sobald der Auktionsplatz frei ist. Prüfung ungefähr einmal pro Minute.</p><form id="planAuction" class="card"><label>Fahrer<select name="driverId" id="queueDriver" required></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><label>Termin (Zeitzone deines Geräts)<input name="scheduledAt" type="datetime-local" required></label><button type="submit">Auktion vormerken</button></form><ul id="queueList" class="queue-list"></ul><p id="discordDeliveryStatus" class="muted"></p></section><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
+</div><section id="raceCreateSection" class="hidden"><h3>Rennen anlegen</h3><p class="muted">Zunächst als Entwurf anlegen. Ergebnisse werden erst nach der Veröffentlichung sichtbar und gewertet.</p><form id="createRace" class="card"><label>Rennen<input name="raceName" maxlength="120" placeholder="z. B. Großer Preis von Österreich" required></label><label>Saison / Meisterschaft<input id="newRaceSeason" name="raceSeason" maxlength="40" required></label><label>Renndatum<input name="raceDate" type="date" required></label><label class="calendar-checkbox"><input name="calendarVisible" type="checkbox" checked>Renntermin vor Veröffentlichung der Ergebnisse im Kalender zeigen</label><p id="raceCreateNotice" role="status" aria-live="polite"></p><button type="submit">Rennen als Entwurf anlegen</button></form></section><section id="queueSection" class="hidden"><h3>Auktionen planen</h3><p class="muted">Geplante Auktionen starten ab dem gewählten Termin, sobald der Auktionsplatz frei ist. Prüfung ungefähr einmal pro Minute.</p><form id="planAuction" class="card"><label>Fahrer<select name="driverId" id="queueDriver" required></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><label>Termin (Zeitzone deines Geräts)<input name="scheduledAt" type="datetime-local" required></label><button type="submit">Auktion vormerken</button></form><ul id="queueList" class="queue-list"></ul><p id="discordDeliveryStatus" class="muted"></p></section><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
 </div>
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-dashboard-clean"></script>
+<script type="module" src="app.js?v=20261110-public-dashboard-v1"></script>
 </body></html>
+
 
 
 

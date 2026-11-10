@@ -167,6 +167,10 @@ if (discordTeam) {
         // Fragment never goes to GitHub Pages server. Frontend immediately removes it.
         return redirect(FRONTEND + '#session=' + sessionToken, { 'Set-Cookie': cookie('', 0), 'Referrer-Policy': 'no-referrer' });
       }
+      // Guests can only read dashboard data; member pages require a valid Discord session.
+      const memberRead = ['/api/drivers','/api/teams','/api/auctions','/api/transfers','/api/races'].includes(path)
+        || /^\/api\/(drivers|races)\/\d+$/.test(path);
+      if (request.method === 'GET' && memberRead && !await getSession(request, env)) return safeError('Bitte mit Discord anmelden', 401);
       if (path === '/api/drivers' && request.method === 'GET') {
   const result = await env.DB.prepare(`
     SELECT id, name
@@ -426,7 +430,7 @@ try {
 }
 
 if (path === '/api/features' && request.method === 'GET') {
-  return json({ version: 2, raceResults: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
+  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
 }
 if (path === '/api/transfers' && request.method === 'GET') {
   return json({ transfers: await transferHistory(env) }, 200, cors);
@@ -474,7 +478,7 @@ if (path.startsWith('/api/admin/queue')) {
   }
 }
 const isRaceAdminPath = path === '/api/admin/races' || path.startsWith('/api/admin/races/');
-const isRacePublicPath = path === '/api/races' || /^\/api\/races\/\d+$/.test(path) || path === '/api/standings';
+const isRacePublicPath = path === '/api/races' || /^\/api\/races\/\d+$/.test(path) || path === '/api/standings' || path === '/api/calendar';
 if (isRaceAdminPath || isRacePublicPath) {
   const adminSession = isRaceAdminPath ? await getSession(request, env) : null;
   if (isRaceAdminPath && !adminSession) return safeError('Nicht angemeldet', 401);
@@ -489,10 +493,19 @@ if (isRaceAdminPath || isRacePublicPath) {
     return json({ drivers: result[0].results, teams: result[1].results }, 200, cors);
   }
   if ((path === '/api/races' || path === '/api/admin/races') && request.method === 'GET') {
-    const result = await env.DB.prepare(`SELECT id, season, name, race_date AS raceDate, status, revision
+    const result = await env.DB.prepare(`SELECT id, season, name, race_date AS raceDate, status, revision, calendar_visible AS calendarVisible
       FROM races WHERE season = ? ${isRaceAdminPath ? '' : "AND status = 'published'"} ORDER BY race_date DESC, id DESC`).bind(season).all();
     const seasons = await env.DB.prepare(`SELECT DISTINCT season FROM races ${isRaceAdminPath ? '' : "WHERE status = 'published'"} ORDER BY season DESC`).all();
     return json({ races: result.results, seasons: seasons.results.map(row => row.season), pointsSystem: RACE_POINTS }, 200, cors);
+  }
+  if (path === '/api/calendar' && request.method === 'GET') {
+    const result = await env.DB.batch([
+      env.DB.prepare(`SELECT id, season, name, race_date AS raceDate,
+        CASE WHEN status = 'published' THEN 'published' ELSE 'planned' END AS status
+        FROM races WHERE season = ? AND (status = 'published' OR calendar_visible = 1) ORDER BY race_date, id`).bind(season),
+      env.DB.prepare(`SELECT DISTINCT season FROM races WHERE status = 'published' OR calendar_visible = 1 ORDER BY season DESC`)
+    ]);
+    return json({ season, calendar: result[0].results, seasons: result[1].results.map(row => row.season) }, 200, cors);
   }
   if (path === '/api/standings' && request.method === 'GET') {
     const rows = await env.DB.prepare(`SELECT rr.driver_id AS driverId, rr.driver_name AS driverName,
@@ -509,18 +522,18 @@ if (isRaceAdminPath || isRacePublicPath) {
   if (path === '/api/admin/races' && request.method === 'POST') {
     const body = await request.json().catch(() => null);
     const header = validateRaceHeader(body);
-    if (!header) return safeError('Name, Saison oder Renndatum ungültig', 400);
+    if (!header || (body.calendarVisible !== undefined && typeof body.calendarVisible !== 'boolean')) return safeError('Name, Saison, Renndatum oder Kalenderfreigabe ungültig', 400);
     const now = new Date().toISOString();
     try {
-      const result = await env.DB.prepare(`INSERT INTO races (season, name, race_date, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?) RETURNING id, revision`).bind(header.season, header.name, header.raceDate, adminSession.discordId, now, now).all();
+      const result = await env.DB.prepare(`INSERT INTO races (season, name, race_date, created_by, created_at, updated_at, calendar_visible)
+        VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, revision`).bind(header.season, header.name, header.raceDate, adminSession.discordId, now, now, body.calendarVisible === true ? 1 : 0).all();
       return json({ ok: true, ...result.results[0] }, 201, cors);
     } catch (error) { return safeError('Ein Rennen mit diesem Namen und Datum ist in dieser Saison bereits vorhanden oder konnte nicht angelegt werden.', 409); }
   }
   if (match && isRaceAdminPath && request.method === 'POST') {
     const id = Number(match[1]), body = await request.json().catch(() => null);
     const header = validateRaceHeader(body);
-    if (!header || !Number.isSafeInteger(body.revision) || body.revision < 1 || !['draft','published'].includes(body.status) || !Array.isArray(body.results) || body.results.length > 60 || (body.status === 'published' && !body.results.length)) {
+    if (!header || (body.calendarVisible !== undefined && typeof body.calendarVisible !== 'boolean') || !Number.isSafeInteger(body.revision) || body.revision < 1 || !['draft','published'].includes(body.status) || !Array.isArray(body.results) || body.results.length > 60 || (body.status === 'published' && !body.results.length)) {
       return safeError('Ungültige Ergebnisse oder fehlende Rennangaben', 400);
     }
     const options = await env.DB.batch([env.DB.prepare('SELECT id, name FROM drivers'), env.DB.prepare('SELECT id, name FROM teams')]);
@@ -547,8 +560,8 @@ if (isRaceAdminPath || isRacePublicPath) {
     try {
       const statements = [env.DB.prepare(`SELECT CASE WHEN EXISTS (SELECT 1 FROM races WHERE id = ? AND revision = ?)
         THEN 1 ELSE json_extract('stale race', '$') END`).bind(id, body.revision),
-        env.DB.prepare(`UPDATE races SET season = ?, name = ?, race_date = ?, status = ?, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?`)
-          .bind(header.season, header.name, header.raceDate, body.status, new Date().toISOString(), id, body.revision),
+        env.DB.prepare(`UPDATE races SET season = ?, name = ?, race_date = ?, status = ?, revision = revision + 1, updated_at = ?, calendar_visible = ? WHERE id = ? AND revision = ?`)
+          .bind(header.season, header.name, header.raceDate, body.status, new Date().toISOString(), body.calendarVisible === undefined ? (existing.race.calendarVisible || 0) : body.calendarVisible ? 1 : 0, id, body.revision),
         env.DB.prepare('DELETE FROM race_results WHERE race_id = ?').bind(id)];
       for (const row of clean) statements.push(env.DB.prepare(`INSERT INTO race_results (race_id, driver_id, driver_name, team_id, team_name, position, status, points)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, row.driverId, row.driverName, row.teamId, row.teamName, row.position, row.status, row.points));
@@ -741,7 +754,7 @@ function validateRaceHeader(body) {
 async function readRace(env, id, includeDraft) {
   if (!Number.isSafeInteger(id) || id < 1) return null;
   const result = await env.DB.batch([
-    env.DB.prepare(`SELECT id, season, name, race_date AS raceDate, status, revision FROM races WHERE id = ? ${includeDraft ? '' : "AND status = 'published'"}`).bind(id),
+    env.DB.prepare(`SELECT id, season, name, race_date AS raceDate, status, revision, calendar_visible AS calendarVisible FROM races WHERE id = ? ${includeDraft ? '' : "AND status = 'published'"}`).bind(id),
     env.DB.prepare(`SELECT driver_id AS driverId, driver_name AS driverName, team_id AS teamId, team_name AS teamName, position, status, points
       FROM race_results WHERE race_id = ? ORDER BY position IS NULL, position, driver_name, driver_id`).bind(id)
   ]);
@@ -760,3 +773,4 @@ function buildStandings(rows, kind) {
   const list = [...map.values()].sort((a,b) => compare(a,b) || a.name.localeCompare(b.name, 'de') || a.id - b.id);
   return list.map((item,i) => { item.rank = i && compare(item,list[i-1]) === 0 ? list[i-1].rank : i+1; return { id: item.id, name: item.name, points: item.points, wins: item.wins, rank: item.rank }; });
 }
+

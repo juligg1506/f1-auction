@@ -14,7 +14,7 @@ Punktgleichheit wird durch die Anzahl erster, zweiter und weiterer klassifiziert
 
 1. In D1 `f1-auction-db` in der Konsole `/bookmark` ausführen und den aktuellen Wiederherstellungspunkt notieren. Die aktive Worker-Version ebenfalls erhalten.
 2. `migrations/002_race_results.sql` in derselben Datenbank ausführen. Voraussetzung: Die bestehenden Tabellen `drivers` und `teams` sind vorhanden; für die bereits gelieferten Auktionsfunktionen muss Migration 001 angewandt sein. Migration 002 ergänzt nur `races`, `race_results` und Indizes. Sie verändert weder Budgets noch bisherige Auktionsdaten.
-3. Den aktualisierten `worker.js` in `f1-auction-api` einfügen und deployen. Alle vorhandenen Bindings, Secrets, Kanal-ID und Cron beibehalten. Keine zusätzlichen Cloudflare-Secrets erforderlich.
+3. Den aktualisierten `worker.js` in `f1-auction-api` einfügen und deployen. Alle vorhandenen Bindings, Secrets, Kanal-ID und Cron beibehalten. Keine zusätzlichen Cloudflare-Secrets erforderlich. Für den aktuellen Worker außerdem Migration 003 anwenden; siehe `OEFFENTLICHES_DASHBOARD.md`.
 4. `GET /api/features` muss `raceResults: true` liefern. Frontend neu laden, mit Discord anmelden. Der Ergebnisbereich erscheint bei allen angemeldeten Nutzern; die Eingabe befindet sich im Adminbereich unter „Rennen anlegen“.
 5. Ein neu angelegtes Rennen ist ein Entwurf und zählt noch nicht. Nach der Eingabe „Ergebnisse veröffentlichen“ wählen. Fehler oder Sanktionen über „Ergebnisse bearbeiten“ korrigieren. „Veröffentlichung zurücknehmen“ nimmt das Rennen aus der Wertung, erhält aber die Eingaben als Entwurf.
 
@@ -32,7 +32,7 @@ Keine Live-Testdaten wurden durch die Entwicklung eingetragen. Die Race-API wurd
 
 ## Neue Routen
 
-Öffentlich lesbar: `GET /api/races?season=2026`, `GET /api/races/:id`, `GET /api/standings?season=2026`. Entwürfe werden nicht veröffentlicht.
+Für angemeldete Nutzer: `GET /api/races?season=2026`, `GET /api/races/:id`. Öffentlich für das Dashboard: `GET /api/standings?season=2026` und `GET /api/calendar?season=2026`. Entwurfsergebnisse bleiben privat; Kalenderdaten eines Entwurfs können separat freigegeben werden. Siehe [OEFFENTLICHES_DASHBOARD.md](OEFFENTLICHES_DASHBOARD.md).
 
 Nur Admin: `GET /api/admin/races/options`, `GET /api/admin/races?season=2026`, `GET /api/admin/races/:id`, `POST /api/admin/races` (Entwurf anlegen), `POST /api/admin/races/:id` (vollständige Ergebnisliste mit Header, Status und Revision speichern).
 
@@ -45,3 +45,4 @@ Für den integrierten Browsertest im ersten Terminal `node tests/integration-ser
 ## Rückweg
 
 Bei Problemen die vorherige Cloudflare-Worker-Version wieder aktivieren. Neue Tabellen zunächst belassen. Das Frontend erkennt den bisherigen Worker ohne Ergebnisfunktion und blendet die Eingabe aus; Auktionen funktionieren weiter. Ein kompletter Datenbank-Restore würde auch andere seit dem Bookmark erfolgte Änderungen zurücksetzen und ist kein regulärer Schritt dieser Erweiterung.
+

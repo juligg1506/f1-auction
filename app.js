@@ -5,6 +5,7 @@ const notice = message => { $('notice').textContent = message; const auctionNoti
 const BID_STEP = 250000;
 let token = sessionStorage.getItem('f1_session');
 let loginReturnView = null;
+let authenticated = false;
 let isAdmin = false, myTeam = null, currentAuction = null, serverOffset = 0;
 let bidPending = false, selectedBid = null, selectedAuctionId = null, auctionLoading = false;
 let drivers = [];
@@ -26,8 +27,13 @@ if (location.hash.startsWith('#session=')) {
 $('login').onclick = () => { sessionStorage.setItem('f1_return_view', currentViewRoute()); location.assign(API + '/auth/start'); };
 $('logout').onclick = async () => {
   try { await fetch(API + '/api/logout', { method:'POST', headers:{Authorization:`Bearer ${token}`} }); } catch(e) { console.error(e); }
-  sessionStorage.removeItem('f1_session'); token = null; location.reload();
+  sessionStorage.removeItem('f1_session'); token = null; authenticated=false;applyView();location.reload();
 };
+function invalidateSession() {
+  sessionStorage.removeItem('f1_session');token=null;authenticated=false;isAdmin=false;
+  for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();
+  $('app').classList.add('hidden');$('guest').classList.remove('hidden');$('login').classList.remove('hidden');$('logout').classList.add('hidden');applyView();
+}
 async function apiRequest(path, options={}) {
   const response = await fetch(API + path, {
     ...options,
@@ -35,6 +41,7 @@ async function apiRequest(path, options={}) {
     cache:'no-store'
   });
   const data = await response.json();
+  if(response.status===401&&token)invalidateSession();
   if (!response.ok) throw new Error(data.error || data.message || 'API-Fehler');
   return data;
 }
@@ -50,7 +57,7 @@ async function boot() {
   if (!token) return;
   try {
     const me = await apiRequest('/api/me');
-    isAdmin = Boolean(me.admin); myTeam = me.team || null;
+    isAdmin = Boolean(me.admin); myTeam = me.team || null;authenticated=true;
     $('login').classList.add('hidden'); $('logout').classList.remove('hidden');
     $('guest').classList.add('hidden'); $('app').classList.remove('hidden');
     $('identity').textContent = me.username; displayBalance();
@@ -61,7 +68,7 @@ async function boot() {
     await loadTeams();
     notice('Discord-Login erfolgreich.');
     await loadDrivers(); await loadAuction(); await loadExtensions(); await loadRaceArea();
-  } catch(e) { sessionStorage.removeItem('f1_session'); token=null; notice(e.message); }
+  } catch(e) { sessionStorage.removeItem('f1_session');token=null;authenticated=false;isAdmin=false;$('app').classList.add('hidden');$('guest').classList.remove('hidden');$('login').classList.remove('hidden');$('logout').classList.add('hidden');applyView();notice('Bitte erneut mit Discord anmelden.'); }
 }
 
 async function loadTeams() {
@@ -484,7 +491,8 @@ function renderRaceEditor() {
   const header=ui('div','race-editor-meta'), name=raceInput('text','raceName',race.name), season=raceInput('text','raceSeason',race.season), date=raceInput('date','raceDate',race.raceDate);
   name.maxLength=120;season.maxLength=40;
   header.append(raceField('Rennen',name),raceField('Saison / Meisterschaft',season),raceField('Renndatum',date));
-  form.append(header,ui('p','muted','Punkte: '+racePoints.join(' · ')+'. Keine Zusatzpunkte. DNF, DNS und DSQ: ohne Platz und ohne Punkte. Für gewertete Fahrer „Klassifiziert“ wählen. Das Team gilt für dieses Rennen.'));
+  const calendarLabel=ui('label','calendar-checkbox'),calendarCheck=ui('input','');calendarCheck.type='checkbox';calendarCheck.name='calendarVisible';calendarCheck.checked=Boolean(race.calendarVisible);calendarLabel.append(calendarCheck,document.createTextNode('Renntermin vor Veröffentlichung der Ergebnisse im Kalender zeigen'));
+  form.append(header,calendarLabel,ui('p','muted','Punkte: '+racePoints.join(' · ')+'. Keine Zusatzpunkte. DNF, DNS und DSQ: ohne Platz und ohne Punkte. Für gewertete Fahrer „Klassifiziert“ wählen. Das Team gilt für dieses Rennen.'));
   const wrap=resultTable(['Fahrer','Team im Rennen','Status','Platz','Punkte',''],[],'Ergebnisse bearbeiten; auf kleinen Displays seitlich scrollen');wrap.classList.add('race-editor-table');wrap.querySelector('tbody').id='raceEditorRows';form.append(wrap);
   const add=ui('button','outline','Fahrer hinzufügen');add.type='button';add.id='addRaceResult';add.onclick=()=>addRaceRow();
   const footer=ui('div','race-editor-actions'), draft=ui('button','outline',race.status==='published'?'Veröffentlichung zurücknehmen':'Entwurf speichern');draft.type='button';draft.id='saveRaceDraft';
@@ -522,7 +530,7 @@ async function saveRace(status) {
   if(new Set(positions).size!==positions.length){$('raceEditorNotice').textContent='Jeden Platz nur einmal vergeben.';return;}
   if(status==='published'&&!confirm('Diese Ergebnisse veröffentlichen und die Meisterschaftswertungen aktualisieren?'))return;
   if(status==='draft'&&raceEditor.race.status==='published'&&!confirm('Veröffentlichung zurücknehmen? Dieses Rennen zählt dann nicht mehr zur Wertung.'))return;
-  const payload={name:form.elements.raceName.value,season:form.elements.raceSeason.value,raceDate:form.elements.raceDate.value,revision:raceEditor.race.revision,status,results};
+  const payload={name:form.elements.raceName.value,season:form.elements.raceSeason.value,raceDate:form.elements.raceDate.value,revision:raceEditor.race.revision,calendarVisible:form.elements.calendarVisible.checked,status,results};
   raceSaving=true;const controls=[...form.querySelectorAll('button,input,select')];const states=controls.map(e=>e.disabled);controls.forEach(e=>e.disabled=true);$('closeRaceDialog').disabled=true;$('raceEditorNotice').textContent='Wird gespeichert …';
   try{await apiRequest('/api/admin/races/'+raceEditor.race.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('raceSeason').value=payload.season.trim();$('raceDialog').close();raceOpenSequence++;navigateTo('rennergebnisse');await loadRaceArea();notice(status==='published'?'Rennergebnis veröffentlicht.':'Rennergebnis als Entwurf gespeichert.');}
   catch(error){$('raceEditorNotice').textContent=error.message;}
@@ -533,11 +541,51 @@ $('raceFilter').onsubmit=event=>{event.preventDefault();loadRaceArea();};
 $('createRace').onsubmit=async event=>{
   event.preventDefault();if(!isAdmin||!raceEnabled)return;
   const form=event.currentTarget,button=form.querySelector('button');button.disabled=true;$('raceCreateNotice').textContent='';
-  try{const result=await apiRequest('/api/admin/races',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:form.elements.raceName.value,season:form.elements.raceSeason.value,raceDate:form.elements.raceDate.value})});$('raceSeason').value=form.elements.raceSeason.value;form.elements.raceName.value='';await loadRaceArea();await openRace(result.id,true);}
+  try{const result=await apiRequest('/api/admin/races',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:form.elements.raceName.value,season:form.elements.raceSeason.value,raceDate:form.elements.raceDate.value,calendarVisible:form.elements.calendarVisible.checked})});$('raceSeason').value=form.elements.raceSeason.value;form.elements.raceName.value='';await loadRaceArea();await openRace(result.id,true);}
   catch(error){$('raceCreateNotice').textContent=error.message;}finally{button.disabled=false;}
 };
 $('closeRaceDialog').onclick=()=>{if(!raceSaving){raceOpenSequence++;$('raceDialog').close();}};
 $('raceDialog').addEventListener('cancel',event=>{if(raceSaving)event.preventDefault();else raceOpenSequence++;});
+
+let dashboardSequence=0, dashboardAutoPicked=false, dashboardUserSelected=false;
+function berlinToday() { const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(type=>parts.find(part=>part.type===type).value).join('-'); }
+async function loadDashboard() {
+  const sequence=++dashboardSequence,season=$('dashboardSeason').value.trim();if(!season||season.length>40)return;
+  const [scores,dates]=await Promise.allSettled([apiRequest('/api/standings?season='+encodeURIComponent(season)),apiRequest('/api/calendar?season='+encodeURIComponent(season))]);
+  if(sequence!==dashboardSequence)return;
+  if(dates.status==='fulfilled') {
+    const seasons=dates.value.seasons||[];
+    $('dashboardSeasons').replaceChildren(...seasons.map(value=>new Option(value,value)));
+    if(!dashboardAutoPicked&&!dashboardUserSelected&&seasons.length&&!seasons.includes(season)&&!dates.value.calendar?.length&&scores.status==='fulfilled'&&!scores.value.drivers?.length){
+      dashboardAutoPicked=true;$('dashboardSeason').value=seasons.find(value=>value.startsWith(berlinToday().slice(0,4)))||seasons[0];return loadDashboard();
+    }
+  }
+  if(scores.status==='fulfilled') {
+    for(const [id,items,label]of[['dashboardDrivers',scores.value.drivers||[],'Fahrerwertung'],['dashboardTeams',scores.value.teams||[],'Teamwertung']]){
+      $(id).replaceChildren(items.length?resultTable(['Platz',label==='Fahrerwertung'?'Fahrer':'Team','Punkte','Siege'],items.map(row=>[row.rank,row.name,row.points,row.wins]),label):ui('p','muted','Noch keine gewerteten Rennergebnisse für diese Saison.'));
+    }
+  }else{for(const id of['dashboardDrivers','dashboardTeams'])$(id).replaceChildren(ui('p','muted','Die Wertung konnte nicht geladen werden. Bitte erneut versuchen.'));}
+  const container=$('dashboardCalendar');$('dashboardNextRace').hidden=true;
+  if(dates.status==='rejected'){container.replaceChildren(ui('p','muted','Der Rennkalender konnte nicht geladen werden. Bitte erneut versuchen.'));return;}
+  const calendar=dates.value.calendar||[],today=berlinToday();container.replaceChildren();
+  if(!calendar.length){container.append(ui('p','muted','Noch keine Renntermine für diese Saison veröffentlicht.'));return;}
+  const next=calendar.find(race=>race.status==='planned'&&race.raceDate>=today);
+  if(next){$('dashboardNextRace').textContent='Nächstes Rennen: '+next.name+' · '+raceDate(next.raceDate);$('dashboardNextRace').hidden=false;}
+  const list=ui('ol','calendar-list');
+  for(const race of calendar){
+    const row=ui('li','calendar-entry'+(race.id===next?.id?' calendar-entry-next':''));
+    const date=ui('time','calendar-date');date.dateTime=race.raceDate;
+    date.append(ui('strong','',race.raceDate.slice(8,10)),ui('span','',new Intl.DateTimeFormat('de-DE',{month:'short',timeZone:'UTC'}).format(new Date(race.raceDate+'T00:00:00Z'))));
+    const text=ui('div','calendar-race');text.append(ui('h3','',race.name),ui('p','muted',raceDate(race.raceDate)));
+    const status=ui('span','calendar-status',race.status==='published'?'Ergebnis veröffentlicht':race.raceDate<today?'Ergebnis ausstehend':'Geplant');
+    row.append(date,text,status);list.append(row);
+  }
+  container.append(list);
+}
+$('dashboardSeason').value=berlinToday().slice(0,4);
+$('dashboardFilter').addEventListener('submit',event=>{event.preventDefault();dashboardUserSelected=true;loadDashboard();});
+setInterval(()=>{if(!document.hidden&&currentViewRoute()==='dashboard')loadDashboard();},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentViewRoute()==='dashboard')loadDashboard();});
 
 const viewRoutes = {
   dashboard: { label: 'Dashboard', section: 'dashboard' },
@@ -557,23 +605,26 @@ function navigateTo(route) {
   else location.hash = route;
 }
 function applyView(moveFocus = false) {
-  const loggedIn = !$('app').classList.contains('hidden');
+  const loggedIn = authenticated;
+  const authPending=Boolean(token)&&!loggedIn;
   let route = currentViewRoute();
+  if(!loggedIn&&!authPending)route='dashboard';
   if (loggedIn && route === 'administration' && !isAdmin) route = 'dashboard';
   if (location.hash !== '#' + route) history.replaceState(null, '', location.pathname + location.search + '#' + route);
   loginReturnView = null;
   const view = viewRoutes[loggedIn ? route : 'dashboard'];
-  for (const panel of document.querySelectorAll('[data-page-view]')) panel.hidden = panel.dataset.pageView !== view.section;
+  for (const panel of document.querySelectorAll('[data-page-view]')) panel.hidden = panel.dataset.pageView !== view.section || (panel.hasAttribute('data-auth-only') && !loggedIn);
   document.querySelector('.hero').hidden = loggedIn && route !== 'dashboard';
   for (const link of document.querySelectorAll('[data-view-link]')) {
+    link.hidden=(!loggedIn && link.dataset.viewLink!=='dashboard') || (link.dataset.viewLink==='administration'&&!isAdmin);
     const active = link.dataset.viewLink === (loggedIn ? route : 'dashboard');
     link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
   }
   document.querySelector('[data-view-link="administration"]').hidden = !loggedIn || !isAdmin;
-  document.querySelector('.top-heading').textContent = loggedIn ? view.label : 'Fahrermarkt';
-  document.querySelector('.top-sub').textContent = loggedIn && route === 'rennergebnisse' ? 'Rennen, Fahrerwertung und Teamwertung' : 'Racing League · Fahrer und Teams';
-  document.title = (loggedIn ? view.label : 'Fahrermarkt') + ' | F1 Auction';
+  document.querySelector('.top-heading').textContent = loggedIn ? view.label : 'Dashboard';
+  document.querySelector('.top-sub').textContent = loggedIn && route === 'rennergebnisse' ? 'Rennen, Fahrerwertung und Teamwertung' : 'Racing League · Wertungen und Rennkalender';
+  document.title = (loggedIn ? view.label : 'Dashboard') + ' | F1 Auction';
   if (moveFocus) {
     window.scrollTo({ top: 0, behavior: 'instant' });
     const panel = document.querySelector('[data-page-view="' + view.section + '"]:not([hidden])');
@@ -582,6 +633,7 @@ function applyView(moveFocus = false) {
   }
   if (loggedIn && route === 'rennergebnisse' && raceEnabled) loadRaceArea();
   if (loggedIn && route === 'auktionen' && moveFocus) loadAuction();
+  if(route==='dashboard'&&moveFocus)loadDashboard();
 }
 for (const link of document.querySelectorAll('[data-view-link]')) link.addEventListener('click', event => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -589,8 +641,9 @@ for (const link of document.querySelectorAll('[data-view-link]')) link.addEventL
 });
 window.addEventListener('hashchange', () => applyView(true));
 applyView();
-
+loadDashboard();
 boot();
+
 
 
 

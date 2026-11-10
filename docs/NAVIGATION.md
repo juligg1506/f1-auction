@@ -1,10 +1,11 @@
-Die Navigation zeigt eigene Ansichten über URL-Fragmente: #dashboard, #rennergebnisse, #teams und #administration. Alte Anker für Ergebnisse, Teams und Administration bleiben gültig. Die Live-Auktion ist eine eigene Ansicht unter `#auktionen`, erreichbar über das Menü. Der alte Anker `#auction-section` führt ebenfalls dorthin. Dialoge sind außerhalb der ausgeblendeten Ansichten angeordnet.
+# Ansichten und Navigation
 
-Die Ergebnisansicht enthält Rennen, Fahrerwertung und Teamwertung. Dashboard zeigt Team-/Kontoinformationen und letzte Transfers. Teams und Administration liegen in ihren eigenen Ansichten. Nicht-Admins erhalten keinen Admin-Menüpunkt; die API-Berechtigungen bleiben bestehen.
+Die Anwendung verwendet `#dashboard`, `#auktionen`, `#rennergebnisse`, `#teams` und `#administration`. Alte Anker für Auktionen, Ergebnisse, Teams und Administration werden weiter unterstützt.
 
-Neuladen und Browser-Zurück/Vorwärts erhalten die Ansicht. Ein gewähltes Ziel wird für den Discord-Login in sessionStorage festgehalten und nach dem OAuth-Callback wiederhergestellt. Öffentliche Seiten müssen weiterhin zunächst über Discord angemeldet werden, wie bisher.
+Gäste sehen nur das öffentliche Dashboard mit Fahrerwertung, Teamwertung und Rennkalender. Andere Menüpunkte sind ausgeblendet; direkte Links werden auf `#dashboard` umgeleitet. Nach erfolgreicher Discord-Anmeldung erscheinen die Mitgliederbereiche. Ein vorhandener gültiger Login erhält seine gewählte Ansicht beim Neuladen. Nicht-Admins sehen keine Administration.
 
-Prüfung: python3 tests/navigation.browser.py (Python Playwright/Chromium, CHROMIUM_PATH optional). Die Rückkehr vom OAuth-Provider wird im Test simuliert; ein echter Discord-Login wird nicht automatisch ausgeführt. Die bestehenden Auktions- und Race-Browsertests wurden auf die neue Navigation angepasst.
+Auktionen haben eine eigene Ansicht. Gebotsregler bieten 250.000er-Schritte, Mindestgebot und einen 1-Mio.-Schritt, Budgetvorschau und eine Bestätigung vor dem Absenden. Führt das eigene Team, sind weitere Gebote gesperrt. Fokus und Scrollposition des Gebotsverlaufs bleiben bei Live-Aktualisierungen erhalten.
 
+Neuladen sowie Browser-Zurück/Vorwärts erhalten die Ansicht, soweit der Anmeldestatus den Zugriff erlaubt. Beim Login aus dem öffentlichen Dashboard kehrt man zum Dashboard zurück. Die API prüft den Sessionzugriff unabhängig von ausgeblendeten Menüpunkten.
 
-Der Gebotsbereich bietet 250.000er-Schritte, Mindestgebot und einen zusätzlichen 1-Mio.-Schritt. Er zeigt den gewählten Betrag und das verbleibende Budget vor der unveränderten Bestätigung. Führt das eigene Team, ist kein weiteres Gebot möglich. Zuschauer sehen keine Gebotsregler. Der Fokus auf einem Regler und die Scrollposition im Gebotsverlauf bleiben bei Live-Aktualisierungen erhalten.
+Siehe [OEFFENTLICHES_DASHBOARD.md](OEFFENTLICHES_DASHBOARD.md) für den öffentlichen Kalender und seine Datenfreigabe.
