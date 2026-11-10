@@ -52,11 +52,42 @@ async function boot() {
     $('admin').classList.toggle('hidden', !isAdmin);
     $('createTeam').classList.add('hidden'); $('assignTeam').classList.add('hidden');
     $('close').classList.add('hidden');
-    $('teams').textContent = 'Teamübersicht folgt.';
+    await loadTeams();
     notice('Discord-Login erfolgreich.');
     await loadDrivers(); await loadAuction();
   } catch(e) { sessionStorage.removeItem('f1_session'); token=null; notice(e.message); }
 }
+
+async function loadTeams() {
+  try {
+    const data = await apiRequest('/api/teams');
+    const container = $('teams');
+    container.replaceChildren();
+
+    for (const team of data.teams || []) {
+      const card = document.createElement('div');
+      card.className = 'card';
+
+      const title = document.createElement('h3');
+      title.textContent = '🏎️ ' + team.name;
+
+      const label = document.createElement('p');
+      label.className = 'muted';
+      label.textContent = 'Verfügbares Budget';
+
+      const balance = document.createElement('div');
+      balance.className = 'stat red';
+      balance.textContent = format(team.budget) + ' Coins';
+
+      card.append(title, label, balance);
+      container.appendChild(card);
+    }
+  } catch (error) {
+    console.error(error);
+    notice('Teamübersicht konnte nicht geladen werden.');
+  }
+}
+
 async function loadDrivers() {
   try {
     const data = await apiRequest('/api/drivers'); drivers = data.drivers || [];
