@@ -172,7 +172,7 @@ async function loadDrivers() {
 }
 function renderDrivers() {
   const container=$('auctions');
-  const card=document.createElement('div'); card.className='card';
+  const card=document.createElement('div'); card.className='card auction-empty';
   const heading=document.createElement('h3'); heading.textContent='Aktuell keine aktive Auktion';
   const info=document.createElement('p'); info.className='muted'; info.textContent='Fahrerübersicht';
   const list=document.createElement('ul');
@@ -183,27 +183,45 @@ function getMinimumBid(a) { return a.highestBid != null ? Number(a.highestBid)+B
 function getRemainingMs(a) { return Date.parse(a.endsAt)-Date.now()-serverOffset; }
 function renderBidControls(card,a) {
   if (!myTeam) return;
-  if (a.leadingTeamId != null && Number(a.leadingTeamId) === Number(myTeam.id)) { const info=document.createElement('p');info.textContent='Dein Team führt mit dem aktuellen Höchstgebot.';card.append(info);return; }
+  if (a.leadingTeamId != null && Number(a.leadingTeamId) === Number(myTeam.id)) {
+    const status=document.createElement('div');status.className='bid-leading';
+    const heading=document.createElement('h4');heading.textContent='Dein Team führt';heading.tabIndex=-1;heading.dataset.auctionFocus='leading';
+    const amount=document.createElement('strong');amount.textContent=format(a.highestBid)+' Coins';
+    const info=document.createElement('p');info.textContent='Dieses Gebot ist für dein Team reserviert. Wir melden dir, wenn du überboten wirst.';
+    status.append(heading,amount,info);card.append(status);return;
+  }
   const minimumBid=getMinimumBid(a);
   if (selectedAuctionId!==a.id) { selectedAuctionId=a.id; selectedBid=minimumBid; }
   if (selectedBid===null || selectedBid<minimumBid) selectedBid=minimumBid;
-  const controls=document.createElement('div'); controls.className='bid-controls';
-  const minus=document.createElement('button'); minus.type='button'; minus.textContent='−'; minus.setAttribute('aria-label','Gebot verringern');
-  const amountDisplay=document.createElement('strong');
-  const plus=document.createElement('button'); plus.type='button'; plus.textContent='+'; plus.setAttribute('aria-label','Gebot erhöhen');
-  const bidButton=document.createElement('button'); bidButton.type='button'; bidButton.id='bidButton';
-  const warning=document.createElement('p'); warning.className='muted';
+  const label=document.createElement('p');label.className='bid-amount-label';label.textContent='Gebotsbetrag';
+  const controls=document.createElement('div');controls.className='bid-controls';
+  const makeButton=(text,name,key)=>{const button=document.createElement('button');button.type='button';button.textContent=text;button.setAttribute('aria-label',name);button.dataset.auctionFocus=key;return button;};
+  const minus=makeButton('−','Gebot um 250.000 Coins verringern','minus');
+  const plus=makeButton('+','Gebot um 250.000 Coins erhöhen','plus');
+  const amountDisplay=document.createElement('strong');amountDisplay.tabIndex=-1;amountDisplay.dataset.auctionFocus='amount';
+  const shortcuts=document.createElement('div');shortcuts.className='bid-shortcuts';
+  const reset=makeButton('Mindestgebot','Mindestgebot auswählen','minimum');
+  const addMillion=makeButton('+1 Mio.','Gebot um 1.000.000 Coins erhöhen','million');shortcuts.append(reset,addMillion);
+  const remaining=document.createElement('p');remaining.className='bid-budget-preview';
+  const bidButton=makeButton('','Gebot abgeben','submit');bidButton.id='bidButton';bidButton.removeAttribute('aria-label');
+  const warning=document.createElement('p');warning.className='bid-warning';warning.setAttribute('role','status');
+  const step=document.createElement('p');step.className='bid-step-note';step.textContent='Schrittweite 250.000 Coins · Bestätigung vor Abgabe';
   function updateControls() {
-    amountDisplay.textContent=format(selectedBid)+' Coins';
-    bidButton.textContent='💰 '+format(selectedBid)+' Coins bieten';
-    const budget=Number(myTeam.budget), expired=getRemainingMs(a)<=0;
+    amountDisplay.replaceChildren(document.createTextNode(format(selectedBid)));
+    const unit=document.createElement('span');unit.textContent='Coins';amountDisplay.append(unit);
+    bidButton.textContent=bidPending?'Gebot wird gesendet …':format(selectedBid)+' Coins bieten';
+    const budget=Number(myTeam.budget),expired=getRemainingMs(a)<=0;
     minus.disabled=bidPending||expired||selectedBid<=minimumBid;
     plus.disabled=bidPending||expired||selectedBid+BID_STEP>budget;
+    reset.disabled=bidPending||expired||selectedBid===minimumBid;
+    addMillion.disabled=bidPending||expired||selectedBid+4*BID_STEP>budget;
     bidButton.disabled=bidPending||expired||selectedBid<minimumBid||selectedBid>budget;
-    warning.textContent=selectedBid>budget?'Nicht genügend Coins.':'';
+    remaining.textContent=selectedBid<=budget?'Nach dem Gebot verfügbar: '+format(budget-selectedBid)+' Coins':'Verfügbares Budget: '+format(budget)+' Coins';
+    warning.textContent=expired?'Die Auktion ist abgelaufen.':selectedBid>budget?'Dein Budget reicht für das Mindestgebot nicht aus.':'';
   }
-  minus.onclick=()=>{ selectedBid=Math.max(minimumBid,selectedBid-BID_STEP); updateControls(); };
-  plus.onclick=()=>{ if(selectedBid+BID_STEP<=Number(myTeam.budget)){selectedBid+=BID_STEP;updateControls();} };
+  function change(amount) { if(bidPending||getRemainingMs(a)<=0)return; if(amount>=minimumBid && amount<=Number(myTeam.budget))selectedBid=amount;updateControls(); }
+  minus.onclick=()=>change(Math.max(minimumBid,selectedBid-BID_STEP));plus.onclick=()=>change(selectedBid+BID_STEP);
+  reset.onclick=()=>change(minimumBid);addMillion.onclick=()=>change(selectedBid+4*BID_STEP);
   bidButton.onclick=async()=>{
     if(bidPending)return;
     if(getRemainingMs(a)<=0){notice('Diese Auktion ist abgelaufen.');return;}
@@ -212,15 +230,13 @@ function renderBidControls(card,a) {
     if(!confirm(format(amount)+' Coins für '+a.driverName+' bieten?'))return;
     bidPending=true;updateControls();
     try {
-      const accepted = await apiRequest('/api/auctions/bid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({auctionId:a.id,amount})});
-      trackedLead = { auctionId: a.id, amount: Number(accepted.amount) };
-      $('outbidAlert').classList.add('hidden');
-      notice('Gebot über '+format(accepted.amount)+' Coins erfolgreich abgegeben!');
-      await refreshBalance();
-    } catch(e) {notice('Gebot fehlgeschlagen: '+e.message);}
-    finally {bidPending=false;updateControls();await loadAuction();}
+      const accepted=await apiRequest('/api/auctions/bid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({auctionId:a.id,amount})});
+      trackedLead={auctionId:a.id,amount:Number(accepted.amount)};
+      $('outbidAlert').classList.add('hidden');notice('Gebot über '+format(accepted.amount)+' Coins erfolgreich abgegeben!');await refreshBalance();
+    }catch(e){notice('Gebot fehlgeschlagen: '+e.message);}
+    finally{bidPending=false;updateControls();await loadAuction();}
   };
-  controls.append(minus,amountDisplay,plus); card.append(controls,bidButton,warning); updateControls();
+  controls.append(minus,amountDisplay,plus);card.append(label,controls,shortcuts,remaining,bidButton,warning,step);updateControls();
 }
 async function loadAuction() {
   if(auctionLoading||bidPending)return;
@@ -238,19 +254,27 @@ async function loadAuction() {
     const bidding=document.createElement('div');bidding.className='auction-bidding';
     const status=document.createElement('span');status.className='auction-live-label';status.textContent='FAHRERAUKTION';
     const title=document.createElement('h3');title.style.marginTop='16px';title.append(profileLink({id:a.driverId,name:a.driverName}));
-    const price=document.createElement('p');price.className='muted';price.textContent='Startpreis: '+format(a.startingPrice)+' Coins';
-    const highest=document.createElement('p');highest.className='auction-highest';highest.textContent=a.highestBid!=null?'Höchstgebot: '+format(a.highestBid)+' Coins':'Noch keine Gebote';
-    const timerLabel=document.createElement('div');timerLabel.className='muted';timerLabel.textContent='Verbleibende Zeit';
+    const price=document.createElement('p');price.className='auction-starting-price';price.textContent='Startpreis: '+format(a.startingPrice)+' Coins';
+    const highest=document.createElement('div');highest.className='auction-highest';
+    const priceLabel=document.createElement('span');priceLabel.textContent='Aktuelles Höchstgebot';
+    const priceAmount=document.createElement('strong');priceAmount.textContent=a.highestBid!=null?format(a.highestBid)+' Coins':'Noch kein Gebot';highest.append(priceLabel,priceAmount);
+    const timerLabel=document.createElement('div');timerLabel.className='auction-clock-label';timerLabel.textContent='Verbleibende Zeit';
     const timer=document.createElement('div');timer.className='stat red';timer.id='auctionTimer';
-    overview.append(status,title,price,highest,timerLabel,timer);
+    const clock=document.createElement('div');clock.className='auction-clock';clock.append(timerLabel,timer);
+    overview.append(status,title,price,highest,clock);
     if (a.leadingTeamName) { const leader=document.createElement('p');leader.className='auction-leader';leader.textContent='Führendes Team: '+a.leadingTeamName;overview.append(leader); }
-    if (data.features?.antiSnipeSeconds) { const rule=document.createElement('p');rule.className='muted';rule.textContent='Gebote in den letzten '+data.features.antiSnipeSeconds+' Sekunden setzen die Restzeit auf '+data.features.antiSnipeSeconds+' Sekunden zurück.';overview.append(rule); }
+    if (data.features?.antiSnipeSeconds) { const rule=document.createElement('p');rule.className='auction-rule';rule.textContent='Gebote in den letzten '+data.features.antiSnipeSeconds+' Sekunden setzen die Restzeit auf '+data.features.antiSnipeSeconds+' Sekunden zurück.';overview.append(rule); }
     const bidHeading=document.createElement('h4');bidHeading.textContent=myTeam?'Dein Gebot':'Auktion verfolgen';
     const budgetInfo=document.createElement('p');budgetInfo.className='auction-budget';
     budgetInfo.textContent=myTeam?myTeam.name+' · '+format(myTeam.budget)+' Coins verfügbar':'Du schaust als Besucher zu. Gebote können Teamchefs abgeben.';
     bidding.append(bidHeading,budgetInfo);
     renderBidControls(bidding,a);
-    card.append(overview,bidding,bidHistory(a)); $('auctions').replaceChildren(card);updateTimer();
+    card.append(overview,bidding,bidHistory(a));
+    const focusKey=$('auctions').contains(document.activeElement)?document.activeElement.dataset.auctionFocus:null;
+    const historyScroll=$('auctions').querySelector('.bid-history-list')?.scrollTop || 0;
+    $('auctions').replaceChildren(card);updateTimer();
+    const historyList=card.querySelector('.bid-history-list');if(historyList)historyList.scrollTop=historyScroll;
+    if(focusKey){const target=card.querySelector('[data-auction-focus="'+focusKey+'"]');const fallback=card.querySelector('[data-auction-focus="amount"], [data-auction-focus="leading"]');if(target&&!target.disabled)target.focus({preventScroll:true});else fallback?.focus({preventScroll:true});}
   } catch(e) {console.error('Auktion konnte nicht geladen werden:',e);notice('Auktion konnte nicht geladen werden: '+e.message);}
   finally {auctionLoading=false;}
 }
@@ -260,9 +284,10 @@ function updateTimer() {
   const remaining=Math.max(0,Math.ceil(getRemainingMs(currentAuction)/1000));
   const minutes=Math.floor(remaining/60),seconds=remaining%60;
   timer.textContent=String(minutes).padStart(2,'0')+':'+String(seconds).padStart(2,'0');
+  timer.classList.toggle('is-expired',remaining===0);
   if(remaining===0){timer.textContent='Zeit abgelaufen – Abschluss ausstehend';
     const button=$('bidButton');if(button)button.disabled=true;
-    document.querySelectorAll('.bid-controls button').forEach(b=>b.disabled=true);
+    document.querySelectorAll('.bid-controls button, .bid-shortcuts button').forEach(b=>b.disabled=true);
   }
 }
 $('createAuction').addEventListener('submit',async event=>{
@@ -276,21 +301,7 @@ $('createAuction').addEventListener('submit',async event=>{
   catch(e){notice('Auktion konnte nicht gestartet werden: '+e.message);}
   finally{button.disabled=false;}
 });
-const auctionDialog = $('auctionDialog');
-function openAuctionWindow(event) {
-  event?.preventDefault();
-  if ($('app').classList.contains('hidden')) {
-    notice('Melde dich mit Discord an, um Auktionen anzusehen.');
-    $('login').focus();
-    return;
-  }
-  $('auctionNotice').textContent = '';
-  if (!auctionDialog.open) auctionDialog.showModal();
-  loadAuction();
-}
-$('openAuction').addEventListener('click', openAuctionWindow);
-document.querySelector('a[href="#auction-section"]').addEventListener('click', openAuctionWindow);
-$('closeAuction').addEventListener('click', () => auctionDialog.close());
+$('openAuction').addEventListener('click', () => navigateTo('auktionen'));
 setInterval(updateTimer,1000);
 setInterval(()=>{if(token&&!bidPending)loadAuction();},3000);
 const ui = (tag, cls, text) => { const e = document.createElement(tag); e.className = cls; if (text !== undefined) e.textContent = text; return e; };
@@ -531,11 +542,12 @@ $('raceDialog').addEventListener('cancel',event=>{if(raceSaving)event.preventDef
 
 const viewRoutes = {
   dashboard: { label: 'Dashboard', section: 'dashboard' },
+  auktionen: { label: 'Live-Auktionen', section: 'auctions' },
   rennergebnisse: { label: 'Rennergebnisse', section: 'results' },
   teams: { label: 'Teams & Fahrer', section: 'teams' },
   administration: { label: 'Administration', section: 'admin' }
 };
-const viewAliases = { 'results-section': 'rennergebnisse', 'team-section': 'teams', admin: 'administration' };
+const viewAliases = { 'auction-section': 'auktionen', 'results-section': 'rennergebnisse', 'team-section': 'teams', admin: 'administration' };
 function currentViewRoute() {
   const hash=location.hash.slice(1) || loginReturnView || 'dashboard';
   return viewRoutes[hash] ? hash : viewAliases[hash] || 'dashboard';
@@ -570,6 +582,7 @@ function applyView(moveFocus = false) {
     if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
   }
   if (loggedIn && route === 'rennergebnisse' && raceEnabled) loadRaceArea();
+  if (loggedIn && route === 'auktionen' && moveFocus) loadAuction();
 }
 for (const link of document.querySelectorAll('[data-view-link]')) link.addEventListener('click', event => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -579,6 +592,7 @@ window.addEventListener('hashchange', () => applyView(true));
 applyView();
 
 boot();
+
 
 
 

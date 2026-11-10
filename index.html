@@ -185,46 +185,6 @@ footer{font-size:12px;color:#9699a2}
 .team-logo{display:block;width:176px;height:72px;max-width:100%;object-fit:contain;object-position:left center}
 .team-logo-fallback{font-size:22px;font-weight:800;line-height:1.1;text-transform:uppercase;overflow-wrap:anywhere}
 
-/* Großes Auktionsfenster */
-.auction-launcher{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:28px 0;padding:26px 28px;border:1px solid var(--stroke);border-left:3px solid var(--red);background:#17191d}
-.auction-launcher h2{margin:8px 0;font-size:26px;letter-spacing:-.6px}
-.auction-launcher p{margin:0;line-height:1.6}
-.auction-launcher button{flex-shrink:0}
-#auctionDialog{color:var(--text);background:#111316;border:1px solid #3c3f47;border-top:3px solid var(--red);border-radius:8px;width:min(1100px,calc(100% - 48px));max-width:none;max-height:calc(100dvh - 48px);padding:32px;overscroll-behavior:contain}
-#auctionDialog::backdrop{background:#000c}
-body:has(#auctionDialog[open]){overflow:hidden}
-.auction-window-header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}
-.auction-window-header h2{margin:8px 0 0;font-size:30px;letter-spacing:-.8px}
-.auction-window-header .metric-label{margin:0}
-#closeAuction{white-space:nowrap}
-#auctionNotice{color:#ffc3cb;font-size:14px;line-height:1.5}
-#auctionNotice:empty{display:none}
-#auctionDialog #auctions{display:block}
-#auctionDialog .auction-card{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);padding:0;border:1px solid #34373e;border-radius:4px;background:#171a1f;overflow:visible}
-.auction-overview{padding:30px;min-width:0}
-.auction-bidding{min-width:0;padding:30px;background:#121417;border-left:1px solid #34373e}
-#auctionDialog .auction-card h3{margin:20px 0;font-size:clamp(28px,4vw,44px);line-height:1.15;overflow-wrap:anywhere}
-.auction-live-label{font-size:11px;font-weight:650;letter-spacing:1.2px;color:#ff8e99}
-.auction-highest{border-top:1px solid #34373e;padding-top:20px;margin-top:24px;font-size:18px;line-height:1.6;font-variant-numeric:tabular-nums}
-#auctionDialog #auctionTimer{font-size:clamp(30px,4.8vw,60px);margin:12px 0 0;letter-spacing:-1px;line-height:1.2;overflow-wrap:anywhere}
-.auction-bidding h4{font-size:20px;margin:0 0 12px}
-.auction-bidding p{line-height:1.6}
-#auctionDialog .bid-controls{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:8px}
-#auctionDialog .bid-controls button{min-width:44px;min-height:48px;background:#292d34;border:1px solid #414650;padding:6px;font-size:24px}
-#auctionDialog .bid-controls strong{min-width:0;font-size:clamp(14px,1.8vw,20px);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-#auctionDialog #bidButton{max-width:none;min-height:52px;white-space:normal}
-.auction-budget{font-size:14px;color:#b7bdc7}
-@media(max-width:760px){
-#auctionDialog{width:calc(100% - 24px);max-height:calc(100dvh - 24px);padding:20px}
-#auctionDialog .auction-card{grid-template-columns:minmax(0,1fr)}
-.auction-overview,.auction-bidding{padding:23px}
-.auction-bidding{border-left:0;border-top:1px solid #34373e}
-.auction-window-header h2{font-size:25px}
-.auction-window-header .metric-label{font-size:9px;letter-spacing:.5px}
-.auction-launcher{align-items:flex-start;flex-direction:column;padding:23px}
-#auctionDialog .bid-controls strong{font-size:18px}
-}
-
 /* Historien, Profile und Auktionsplanung */
 .driver-link{border:0;background:none;color:inherit;padding:2px 0;min-height:44px;font:inherit;line-height:inherit;letter-spacing:inherit;text-align:left;text-decoration:underline;text-decoration-color:#626773;text-underline-offset:4px;overflow-wrap:anywhere;max-width:100%}
 .driver-link:hover:not(:disabled){background:none;color:#ffb3bd}
@@ -291,6 +251,43 @@ body:has(#driverDialog[open]){overflow:hidden}
 .sidebar .brand{font-size:19px;padding:8px 7px 26px;text-align:left}.sidebar .brand:before{display:none}
 .nav-text{display:inline;font-size:12px}.nav-link{justify-content:flex-start;gap:9px;padding:13px 10px}.nav-icon{width:20px;font-size:16px}
 }
+/* Eigene Auktionsansicht */
+#auctionPage{max-width:1180px;margin:0 auto}
+.auction-page-header{margin:0 0 26px}.auction-page-header h2{font-size:30px;letter-spacing:-1px;margin:0 0 10px;font-weight:650}.auction-page-header p{margin:0;line-height:1.6;font-size:14px}
+#auctionNotice{color:#ffc3cb;line-height:1.6;margin:0 0 20px}#auctionNotice:empty{display:none}
+#auctionPage #auctions{display:block}
+#auctionPage .auction-card{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);padding:0;border:1px solid #34373e;border-radius:10px;background:#191c21;overflow:hidden}
+.auction-overview{padding:32px;min-width:0}.auction-bidding{min-width:0;padding:32px;background:#121417;border-left:1px solid #34373e}
+.auction-live-label{font-size:10px;font-weight:650;letter-spacing:1.5px;color:#adb4c0}
+#auctionPage .auction-card h3{margin:18px 0;font-size:clamp(30px,3.8vw,48px);font-weight:700;font-style:normal;letter-spacing:-1.3px;line-height:1.1;overflow-wrap:anywhere}
+#auctionPage h3 .driver-link{text-decoration:none;min-height:0}#auctionPage h3 .driver-link:hover{text-decoration:underline;text-decoration-thickness:1px}
+.auction-starting-price{font-size:13px;color:#aab3c1}
+.auction-highest{margin:30px 0 24px;padding-top:24px;border-top:1px solid #34373e;display:flex;flex-direction:column;gap:10px}
+.auction-highest span{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#aab3c1}
+.auction-highest strong{font-size:clamp(24px,2.8vw,34px);font-weight:650;letter-spacing:-1px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.auction-clock{border-top:1px solid #34373e;padding-top:24px;margin-top:24px}.auction-clock-label{font-size:11px;color:#adb4c0}
+#auctionPage #auctionTimer{font-size:clamp(36px,4.5vw,58px);font-weight:600;letter-spacing:-1.5px;margin:8px 0;line-height:1.15;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#auctionPage #auctionTimer.is-expired{font-size:24px;letter-spacing:-.5px}
+.auction-rule{font-size:12px;line-height:1.6;color:#aab3c1;margin:18px 0 0}
+.auction-leader{font-size:13px;font-weight:500;color:#c9ced8}
+.auction-bidding>h4{font-size:22px;letter-spacing:-.5px;font-weight:600;margin:0 0 10px}.auction-budget{font-size:13px;line-height:1.7;color:#aab3c1;margin:0 0 28px}
+.bid-amount-label{font-size:11px;color:#b2b9c5;margin:0 0 12px}
+#auctionPage .bid-controls{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;align-items:stretch;gap:8px;margin:0;padding:14px 10px;background:#1c1f25;border:1px solid #3b404b;border-radius:8px}
+#auctionPage .bid-controls button{min-width:44px;min-height:52px;padding:0;font-size:25px;font-weight:400;background:#292e37;border:1px solid #414958;border-radius:5px}
+#auctionPage .bid-controls button:hover:not(:disabled){background:#373e49}
+#auctionPage .bid-controls strong{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;min-width:0;font-size:clamp(19px,2.1vw,29px);letter-spacing:-.8px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.2;overflow-wrap:anywhere}
+#auctionPage .bid-controls strong span{font-size:10px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase;color:#b0b8c5}
+.bid-shortcuts{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 22px}.bid-shortcuts button{flex:1;min-height:40px;font-size:11px;padding:8px 12px;color:#d6dce6;background:transparent;border:1px solid #3b404b;border-radius:5px}.bid-shortcuts button:hover:not(:disabled){background:#242831}
+.bid-budget-preview{font-size:12px;line-height:1.7;color:#b3bbc9;margin:0 0 20px;font-variant-numeric:tabular-nums}
+#auctionPage #bidButton{max-width:none;width:100%;min-height:54px;border-radius:6px;font-size:14px;font-weight:650;padding:15px;white-space:normal}
+.bid-step-note{font-size:10px;color:#929caa;line-height:1.7;margin:16px 0 0}.bid-warning{color:#ffc3cb;font-size:13px;line-height:1.6;margin:12px 0 0}.bid-warning:empty{display:none}
+.bid-leading{margin-top:32px;border-top:2px solid #66cda4;padding-top:22px}.bid-leading h4{font-size:19px;font-weight:600;margin:0 0 12px}.bid-leading strong{font-size:26px;font-weight:650}.bid-leading p{font-size:13px;color:#acb9c5;line-height:1.7}
+#auctionPage .bid-history{background:#15181c}#auctionPage .bid-history h4{font-weight:600;font-size:16px}
+#auctionPage .bid-history-list{max-height:320px}.auction-empty h3{font-size:24px}.auction-empty .driver-link{font-size:14px}
+@media(max-width:1100px){#auctionPage .auction-card{grid-template-columns:minmax(0,1fr)}.auction-bidding{border-left:0;border-top:1px solid #34373e}#auctionPage .bid-controls strong{font-size:30px}}
+@media(max-width:640px){.auction-overview,.auction-bidding{padding:24px 20px}.auction-page-header h2{font-size:26px}#auctionPage .bid-controls{grid-template-columns:44px minmax(0,1fr) 44px;padding:12px 8px;gap:6px}#auctionPage .bid-controls strong{font-size:24px}#auctionPage .bid-history{padding:24px 20px}.bid-shortcuts button{font-size:11px}}
+
+body:has(#auctionPage:not([hidden])) #notice,body:has(#auctionPage:not([hidden])) #outbidAlert{display:none}
 </style>
 </head>
 <body>
@@ -298,7 +295,7 @@ body:has(#driverDialog[open]){overflow:hidden}
  <div class="brand">F1 <span>AUCTION</span></div>
  <div class="nav-label">Racing League</div>
  <a class="nav-link active" href="#dashboard" data-view-link="dashboard" aria-label="Dashboard" title="Dashboard"><span class="nav-icon">▦</span><span class="nav-text">Dashboard</span></a>
- <a class="nav-link" href="#auction-section" aria-haspopup="dialog" aria-controls="auctionDialog" aria-label="Live-Auktionen" title="Live-Auktionen"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
+ <a class="nav-link" href="#auktionen" data-view-link="auktionen" aria-label="Live-Auktionen" title="Live-Auktionen"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
  <a class="nav-link" href="#rennergebnisse" data-view-link="rennergebnisse" aria-label="Rennergebnisse" title="Rennergebnisse"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-text">Rennergebnisse</span></a>
  <a class="nav-link" href="#teams" data-view-link="teams" aria-label="Teams" title="Teams"><span class="nav-icon">▤</span><span class="nav-text">Teams</span></a>
  <a class="nav-link" href="#administration" data-view-link="administration" aria-label="Administration" title="Administration" hidden><span class="nav-icon">⚙</span><span class="nav-text">Administration</span></a>
@@ -315,13 +312,9 @@ body:has(#driverDialog[open]){overflow:hidden}
 <div class="grid summary-grid" data-page-view="dashboard"><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
 <section id="auction-section" class="auction-launcher" data-page-view="dashboard">
 <div><p class="metric-label">FAHRERMARKT</p><h2>Live-Auktion</h2><p class="muted">Fahrer, Gebote und Countdown in einer großen Übersicht.</p></div>
-<button id="openAuction" type="button" aria-haspopup="dialog" aria-controls="auctionDialog">Auktion öffnen <span aria-hidden="true">↗</span></button>
+<button id="openAuction" type="button">Zur Auktion <span aria-hidden="true">↗</span></button>
 </section>
-<dialog id="auctionDialog" aria-labelledby="auctionDialogTitle">
-<div class="auction-window-header"><div><p class="metric-label">RACING LEAGUE / FAHRERMARKT</p><h2 id="auctionDialogTitle">Live-Auktion</h2></div><button id="closeAuction" class="outline" type="button" autofocus>Schließen <span aria-hidden="true">×</span></button></div>
-<p id="auctionNotice" role="status" aria-live="polite"></p>
-<div id="auctions" class="grid"></div>
-</dialog>
+<section id="auctionPage" data-page-view="auctions" hidden aria-labelledby="auctionPageTitle"><header class="auction-page-header"><h2 id="auctionPageTitle">Live-Auktionen</h2><p class="muted">Aktuelle Fahrerauktion und Gebotsverlauf.</p></header><p id="auctionNotice" role="status" aria-live="polite"></p><div id="auctions" class="grid"></div></section>
 <section id="results-section" data-page-view="results" hidden><h2 class="section">Rennergebnisse</h2>
 <form id="raceFilter" class="race-filter"><label>Saison / Meisterschaft<input id="raceSeason" name="season" list="raceSeasons" maxlength="40" required><datalist id="raceSeasons"></datalist></label><button type="submit" class="outline">Anzeigen</button></form>
 <div id="raceList" class="card"><p class="muted">Noch keine Rennergebnisse verfügbar.</p></div>
@@ -341,8 +334,9 @@ body:has(#driverDialog[open]){overflow:hidden}
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-navigation-v1"></script>
+<script type="module" src="app.js?v=20261110-auction-page-v1"></script>
 </body></html>
+
 
 
 

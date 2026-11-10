@@ -62,15 +62,15 @@ async def main():
      await page.wait_for_function("document.querySelector('.auction-bidding').textContent.includes('Dein Team führt')")
      assert len([x for x in posts if x[0]=='auctions/bid'])==1
      assert await page.locator('#outbidAlert').is_hidden()
-   assert not await page.locator('#auctionDialog').evaluate('e=>e.scrollWidth>e.clientWidth')
+   assert not await page.locator('#auctionPage').evaluate('e=>e.scrollWidth>e.clientWidth')
    await page.screenshot(path=str(artifacts/f'preview-{width}-{mode}.png'))
    await page.locator('.auction-overview .driver-link').click()
    assert await page.locator('#driverDialog').evaluate('d=>d.open')
    await page.wait_for_function("document.getElementById('driverProfileBody').textContent.includes('Ferrari')")
    if mode!='legacy':assert await page.locator('#driverDialog .transfer-row').count()==1
    await page.locator('#closeDriver').click()
-   assert await page.locator('#auctionDialog').evaluate('d=>d.open')
-   await page.locator('#closeAuction').click()
+   assert await page.locator('#auctionPage').is_visible()
+   await page.locator('[data-view-link=dashboard]').click()
    if mode=='admin':
     await page.locator('[data-view-link=administration]').click()
     await page.locator('#queueDriver').select_option('2')
@@ -87,4 +87,5 @@ async def main():
    await context.close()
   await browser.close()
 asyncio.run(main())
+
 

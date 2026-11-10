@@ -29,7 +29,7 @@ async def main():
    await page.go_back();await expect(page.locator('#results-section')).to_be_visible()
    await page.go_forward();await expect(page.locator('#teams')).to_be_visible()
    await page.reload(wait_until='networkidle');await expect(page.locator('#teams')).to_be_visible()
-   await page.locator('a[href="#auction-section"]').click();await expect(page.locator('#auctionDialog')).to_be_visible();await page.locator('#closeAuction').click();await expect(page.locator('#teams')).to_be_visible()
+   await page.locator('[data-view-link=auktionen]').click();await expect(page.locator('#auctionPage')).to_be_visible();await expect(page).to_have_url('https://juligg1506.github.io/f1-auction/#auktionen');await expect(page.locator('#teams')).to_be_hidden();await page.go_back();await expect(page.locator('#teams')).to_be_visible()
    await page.locator('[data-view-link=administration]').click();await expect(page.locator('#admin')).to_be_visible();await expect(page.locator('#createRace')).to_be_visible();await expect(page.locator('#teams')).to_be_hidden()
    await page.locator('[data-view-link=rennergebnisse]').click();await page.locator('.race-list-row button').click();await expect(page.locator('#raceDialog')).to_be_visible();await expect(page.locator('#raceEditorForm')).to_be_visible();await page.locator('#closeRaceDialog').click()
    assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth')
@@ -42,3 +42,4 @@ async def main():
   await page.locator('#login').click();await page.wait_for_url('**/auth/start');await page.goto('https://juligg1506.github.io/f1-auction/#session='+'a'*64,wait_until='networkidle');await expect(page.locator('#results-section')).to_be_visible();await expect(page).to_have_url('https://juligg1506.github.io/f1-auction/#rennergebnisse');assert not errors,errors;await c.close()
   await b.close();print('PASS admin access, old links, direct results link and OAuth return view',flush=True)
 asyncio.run(main())
+
