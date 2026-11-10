@@ -98,7 +98,33 @@ card.style.setProperty('--team-glow', '#1b202b');
       balance.className = 'stat red';
       balance.innerHTML = `${format(team.budget)} <span class="coin-unit">Coins</span>`;
 
-      card.append(title, label, balance);
+
+const squad = document.createElement('div');
+squad.style.marginTop = '20px';
+squad.style.paddingTop = '15px';
+squad.style.borderTop = '1px solid #303744';
+
+const squadTitle = document.createElement('p');
+squadTitle.className = 'muted';
+squadTitle.textContent = 'FAHRERKADER';
+squad.appendChild(squadTitle);
+
+if (team.drivers && team.drivers.length > 0) {
+  for (const driver of team.drivers) {
+    const driverName = document.createElement('p');
+    driverName.textContent = '🏎️ ' + driver.name;
+    driverName.style.margin = '8px 0';
+    squad.appendChild(driverName);
+  }
+} else {
+  const empty = document.createElement('p');
+  empty.className = 'muted';
+  empty.textContent = 'Noch keine Fahrer verpflichtet';
+  squad.appendChild(empty);
+}
+
+card.append(title, label, balance, squad);
+
       container.appendChild(card);
     }
   } catch (error) {
