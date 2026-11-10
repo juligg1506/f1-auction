@@ -88,7 +88,7 @@ card.style.setProperty('--team-color', teamColor);
 card.style.setProperty('--team-glow', '#1b202b');
 
       const title = document.createElement('h3');
-      title.textContent = '🏎️ ' + team.name;
+      title.textContent = team.name;
 
       const label = document.createElement('p');
       label.className = 'muted';
@@ -100,6 +100,7 @@ card.style.setProperty('--team-glow', '#1b202b');
 
 
 const squad = document.createElement('div');
+squad.className = 'team-squad';
 squad.style.marginTop = '20px';
 squad.style.paddingTop = '15px';
 squad.style.borderTop = '1px solid #303744';
@@ -112,7 +113,8 @@ squad.appendChild(squadTitle);
 if (team.drivers && team.drivers.length > 0) {
   for (const driver of team.drivers) {
     const driverName = document.createElement('p');
-    driverName.textContent = '🏎️ ' + driver.name;
+    driverName.textContent = driver.name;
+    driverName.className = 'team-driver';
     driverName.style.margin = '8px 0';
     squad.appendChild(driverName);
   }
