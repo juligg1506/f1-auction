@@ -4,6 +4,7 @@ const format = n => new Intl.NumberFormat('de-DE').format(n);
 const notice = message => { $('notice').textContent = message; const auctionNotice = $('auctionNotice'); if (auctionNotice) auctionNotice.textContent = message; };
 const BID_STEP = 250000;
 let token = sessionStorage.getItem('f1_session');
+let loginReturnView = null;
 let isAdmin = false, myTeam = null, currentAuction = null, serverOffset = 0;
 let bidPending = false, selectedBid = null, selectedAuctionId = null, auctionLoading = false;
 let drivers = [];
@@ -13,6 +14,8 @@ if (location.hash.startsWith('#session=')) {
   const candidate = location.hash.slice('#session='.length);
   if (/^[a-f0-9]{64}$/.test(candidate)) {
     token = candidate;
+    loginReturnView = sessionStorage.getItem('f1_return_view');
+    sessionStorage.removeItem('f1_return_view');
     sessionStorage.setItem('f1_session', token);
   }
   history.replaceState(null, '', location.pathname + location.search);
@@ -20,7 +23,7 @@ if (location.hash.startsWith('#session=')) {
   history.replaceState(null, '', location.pathname + location.search);
   notice('Discord-Anmeldung fehlgeschlagen.');
 }
-$('login').onclick = () => location.assign(API + '/auth/start');
+$('login').onclick = () => { sessionStorage.setItem('f1_return_view', currentViewRoute()); location.assign(API + '/auth/start'); };
 $('logout').onclick = async () => {
   try { await fetch(API + '/api/logout', { method:'POST', headers:{Authorization:`Bearer ${token}`} }); } catch(e) { console.error(e); }
   sessionStorage.removeItem('f1_session'); token = null; location.reload();
@@ -52,6 +55,7 @@ async function boot() {
     $('guest').classList.add('hidden'); $('app').classList.remove('hidden');
     $('identity').textContent = me.username; displayBalance();
     $('admin').classList.toggle('hidden', !isAdmin);
+    applyView();
     $('createTeam').classList.add('hidden'); $('assignTeam').classList.add('hidden');
     $('close').classList.add('hidden');
     await loadTeams();
@@ -510,7 +514,7 @@ async function saveRace(status) {
   if(status==='draft'&&raceEditor.race.status==='published'&&!confirm('Veröffentlichung zurücknehmen? Dieses Rennen zählt dann nicht mehr zur Wertung.'))return;
   const payload={name:form.elements.raceName.value,season:form.elements.raceSeason.value,raceDate:form.elements.raceDate.value,revision:raceEditor.race.revision,status,results};
   raceSaving=true;const controls=[...form.querySelectorAll('button,input,select')];const states=controls.map(e=>e.disabled);controls.forEach(e=>e.disabled=true);$('closeRaceDialog').disabled=true;$('raceEditorNotice').textContent='Wird gespeichert …';
-  try{await apiRequest('/api/admin/races/'+raceEditor.race.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('raceSeason').value=payload.season.trim();$('raceDialog').close();raceOpenSequence++;await loadRaceArea();notice(status==='published'?'Rennergebnis veröffentlicht.':'Rennergebnis als Entwurf gespeichert.');}
+  try{await apiRequest('/api/admin/races/'+raceEditor.race.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});$('raceSeason').value=payload.season.trim();$('raceDialog').close();raceOpenSequence++;navigateTo('rennergebnisse');await loadRaceArea();notice(status==='published'?'Rennergebnis veröffentlicht.':'Rennergebnis als Entwurf gespeichert.');}
   catch(error){$('raceEditorNotice').textContent=error.message;}
   finally{raceSaving=false;controls.forEach((e,i)=>e.disabled=states[i]);$('closeRaceDialog').disabled=false;}
 }
@@ -525,6 +529,56 @@ $('createRace').onsubmit=async event=>{
 $('closeRaceDialog').onclick=()=>{if(!raceSaving){raceOpenSequence++;$('raceDialog').close();}};
 $('raceDialog').addEventListener('cancel',event=>{if(raceSaving)event.preventDefault();else raceOpenSequence++;});
 
+const viewRoutes = {
+  dashboard: { label: 'Dashboard', section: 'dashboard' },
+  rennergebnisse: { label: 'Rennergebnisse', section: 'results' },
+  teams: { label: 'Teams & Fahrer', section: 'teams' },
+  administration: { label: 'Administration', section: 'admin' }
+};
+const viewAliases = { 'results-section': 'rennergebnisse', 'team-section': 'teams', admin: 'administration' };
+function currentViewRoute() {
+  const hash=location.hash.slice(1) || loginReturnView || 'dashboard';
+  return viewRoutes[hash] ? hash : viewAliases[hash] || 'dashboard';
+}
+function navigateTo(route) {
+  if (!viewRoutes[route]) return;
+  if (location.hash === '#' + route) applyView(true);
+  else location.hash = route;
+}
+function applyView(moveFocus = false) {
+  const loggedIn = !$('app').classList.contains('hidden');
+  let route = currentViewRoute();
+  if (loggedIn && route === 'administration' && !isAdmin) route = 'dashboard';
+  if (location.hash !== '#' + route) history.replaceState(null, '', location.pathname + location.search + '#' + route);
+  loginReturnView = null;
+  const view = viewRoutes[loggedIn ? route : 'dashboard'];
+  for (const panel of document.querySelectorAll('[data-page-view]')) panel.hidden = panel.dataset.pageView !== view.section;
+  document.querySelector('.hero').hidden = loggedIn && route !== 'dashboard';
+  for (const link of document.querySelectorAll('[data-view-link]')) {
+    const active = link.dataset.viewLink === (loggedIn ? route : 'dashboard');
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  }
+  document.querySelector('[data-view-link="administration"]').hidden = !loggedIn || !isAdmin;
+  document.querySelector('.top-heading').textContent = loggedIn ? view.label : 'Fahrermarkt';
+  document.querySelector('.top-sub').textContent = loggedIn && route === 'rennergebnisse' ? 'Rennen, Fahrerwertung und Teamwertung' : 'Racing League · Fahrer und Teams';
+  document.title = (loggedIn ? view.label : 'Fahrermarkt') + ' | F1 Auction';
+  if (moveFocus) {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    const panel = document.querySelector('[data-page-view="' + view.section + '"]:not([hidden])');
+    const heading = (loggedIn ? panel?.querySelector('h2, h3') : null) || document.querySelector('.hero h1');
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  }
+  if (loggedIn && route === 'rennergebnisse' && raceEnabled) loadRaceArea();
+}
+for (const link of document.querySelectorAll('[data-view-link]')) link.addEventListener('click', event => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault(); navigateTo(link.dataset.viewLink);
+});
+window.addEventListener('hashchange', () => applyView(true));
+applyView();
+
 boot();
+
 
 

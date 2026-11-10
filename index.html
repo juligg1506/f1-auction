@@ -282,17 +282,26 @@ body:has(#driverDialog[open]){overflow:hidden}
 @media(max-width:1000px){.standings-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:640px){#raceDialog{padding:18px}.race-editor-meta{grid-template-columns:minmax(0,1fr);gap:0}.race-list-row{align-items:flex-start;flex-direction:column;gap:14px}.race-editor-actions{flex-direction:column}.standings-grid .card{padding:18px}#raceDialogTitle{font-size:22px}.race-table td,.race-table th{padding:12px 10px}}
 
+
+[hidden]{display:none!important}
+[data-page-view] > .section:first-child,#results-section{margin-top:0}
+
+@media(min-width:641px) and (max-width:1000px){
+.sidebar{width:190px;padding:25px 12px}.page{margin-left:190px}
+.sidebar .brand{font-size:19px;padding:8px 7px 26px;text-align:left}.sidebar .brand:before{display:none}
+.nav-text{display:inline;font-size:12px}.nav-link{justify-content:flex-start;gap:9px;padding:13px 10px}.nav-icon{width:20px;font-size:16px}
+}
 </style>
 </head>
 <body>
 <aside class="sidebar" aria-label="Hauptnavigation">
  <div class="brand">F1 <span>AUCTION</span></div>
  <div class="nav-label">Racing League</div>
- <a class="nav-link active" href="#dashboard"><span class="nav-icon">▦</span><span class="nav-text">Dashboard</span></a>
- <a class="nav-link" href="#auction-section"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
- <a class="nav-link" href="#results-section"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-text">Ergebnisse</span></a>
- <a class="nav-link" href="#team-section"><span class="nav-icon">▤</span><span class="nav-text">Teams</span></a>
- <a class="nav-link" href="#admin"><span class="nav-icon">⚙</span><span class="nav-text">Administration</span></a>
+ <a class="nav-link active" href="#dashboard" data-view-link="dashboard" aria-label="Dashboard" title="Dashboard"><span class="nav-icon">▦</span><span class="nav-text">Dashboard</span></a>
+ <a class="nav-link" href="#auction-section" aria-haspopup="dialog" aria-controls="auctionDialog" aria-label="Live-Auktionen" title="Live-Auktionen"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
+ <a class="nav-link" href="#rennergebnisse" data-view-link="rennergebnisse" aria-label="Rennergebnisse" title="Rennergebnisse"><span class="nav-icon" aria-hidden="true">≡</span><span class="nav-text">Rennergebnisse</span></a>
+ <a class="nav-link" href="#teams" data-view-link="teams" aria-label="Teams" title="Teams"><span class="nav-icon">▤</span><span class="nav-text">Teams</span></a>
+ <a class="nav-link" href="#administration" data-view-link="administration" aria-label="Administration" title="Administration" hidden><span class="nav-icon">⚙</span><span class="nav-text">Administration</span></a>
  <div class="side-bottom">Racing League<br>Fahrerauktionen</div>
 </aside>
 <div class="page">
@@ -303,8 +312,8 @@ body:has(#driverDialog[open]){overflow:hidden}
 <p id="notice" role="status" aria-live="polite"></p>
 <section id="guest" class="card"><div class="tiny-rule"></div><h2>Der Fahrermarkt deiner Liga</h2><p class="muted">Melde dich mit Discord an, um Fahrerauktionen, Teams und Gebote zu sehen. Zuschauer können ohne Teamrolle mitlesen.</p></section>
 <div id="app" class="hidden">
-<div class="grid summary-grid"><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
-<section id="auction-section" class="auction-launcher">
+<div class="grid summary-grid" data-page-view="dashboard"><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
+<section id="auction-section" class="auction-launcher" data-page-view="dashboard">
 <div><p class="metric-label">FAHRERMARKT</p><h2>Live-Auktion</h2><p class="muted">Fahrer, Gebote und Countdown in einer großen Übersicht.</p></div>
 <button id="openAuction" type="button" aria-haspopup="dialog" aria-controls="auctionDialog">Auktion öffnen <span aria-hidden="true">↗</span></button>
 </section>
@@ -313,17 +322,17 @@ body:has(#driverDialog[open]){overflow:hidden}
 <p id="auctionNotice" role="status" aria-live="polite"></p>
 <div id="auctions" class="grid"></div>
 </dialog>
-<section id="results-section"><h2 class="section">Rennergebnisse</h2>
+<section id="results-section" data-page-view="results" hidden><h2 class="section">Rennergebnisse</h2>
 <form id="raceFilter" class="race-filter"><label>Saison / Meisterschaft<input id="raceSeason" name="season" list="raceSeasons" maxlength="40" required><datalist id="raceSeasons"></datalist></label><button type="submit" class="outline">Anzeigen</button></form>
 <div id="raceList" class="card"><p class="muted">Noch keine Rennergebnisse verfügbar.</p></div>
 <div class="standings-grid"><section class="card"><h3>Fahrerwertung</h3><div id="driverStandings"></div></section><section class="card"><h3>Teamwertung</h3><div id="teamStandings"></div></section></div>
 <p class="muted">Nur veröffentlichte Rennen zählen. Bei Punktgleichheit entscheiden die besseren Platzierungen; vollständig gleiche Wertungen teilen sich den Rang.</p>
 </section>
 <dialog id="raceDialog" aria-labelledby="raceDialogTitle"><header class="auction-window-header"><h2 id="raceDialogTitle">Rennergebnis</h2><button id="closeRaceDialog" class="outline" type="button" autofocus>Schließen ×</button></header><p id="raceEditorNotice" role="status" aria-live="polite"></p><div id="raceDialogBody"></div></dialog>
-<section class="transfers-section"><div class="section-toolbar"><h2 class="section">Letzte Transfers</h2><button id="refreshTransfers" class="outline" type="button">Aktualisieren</button></div><div id="transferList" class="card"><p class="muted">Die Transferhistorie wird geladen.</p></div></section>
-<h2 id="team-section" class="section">Teams & Fahrer</h2><div id="teams" class="grid"></div>
+<section class="transfers-section" data-page-view="dashboard"><div class="section-toolbar"><h2 class="section">Letzte Transfers</h2><button id="refreshTransfers" class="outline" type="button">Aktualisieren</button></div><div id="transferList" class="card"><p class="muted">Die Transferhistorie wird geladen.</p></div></section>
+<section data-page-view="teams" hidden><h2 id="team-section" class="section">Teams & Fahrer</h2><div id="teams" class="grid"></div></section>
 <dialog id="driverDialog" aria-labelledby="driverDialogTitle"><div class="auction-window-header"><h2 id="driverDialogTitle">Fahrerprofil</h2><button id="closeDriver" class="outline" type="button" autofocus>Schließen ×</button></div><div id="driverProfileBody"></div></dialog>
-<section id="admin" class="hidden"><h2 class="section">Verwaltung</h2><div class="grid">
+<section id="admin" class="hidden" data-page-view="admin" hidden><h2 class="section">Verwaltung</h2><div class="grid">
 <form id="createTeam" class="card"><h3>Team erstellen</h3><label>Teamname<input name="name" required maxlength="60"></label><button type="submit">Erstellen</button></form>
 <form id="assignTeam" class="card"><h3>Teamchef zuweisen</h3><label>Discord-Benutzer-ID<input name="discordId" required pattern="[0-9]{15,25}"></label><label>Team<select name="teamId" id="teamSelect" required></select></label><button type="submit">Zuweisen</button></form>
 <form id="createAuction" class="card"><h3>🏎️ Fahrerauktion starten</h3><label>Fahrer<select name="driverId" id="auctionDriver" required><option value="">Fahrer auswählen</option></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><p class="muted">Gebotsschritt: 250.000 Coins</p><p class="muted">Auktionsdauer: 3 Minuten</p><button type="submit">Auktion starten</button></form>
@@ -332,7 +341,8 @@ body:has(#driverDialog[open]){overflow:hidden}
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-races-v1"></script>
+<script type="module" src="app.js?v=20261110-navigation-v1"></script>
 </body></html>
+
 
 

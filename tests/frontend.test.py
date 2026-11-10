@@ -72,6 +72,7 @@ async def main():
    assert await page.locator('#auctionDialog').evaluate('d=>d.open')
    await page.locator('#closeAuction').click()
    if mode=='admin':
+    await page.locator('[data-view-link=administration]').click()
     await page.locator('#queueDriver').select_option('2')
     await page.locator('#planAuction input[name=scheduledAt]').fill('2027-01-02T15:00')
     await page.locator('#planAuction button').click()
@@ -86,3 +87,4 @@ async def main():
    await context.close()
   await browser.close()
 asyncio.run(main())
+

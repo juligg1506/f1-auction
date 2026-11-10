@@ -24,6 +24,7 @@ async def main():
    return context,page,errors
   for width in [1440,820,390,320]:
    context,page,errors=await setup(width)
+   await page.locator('[data-view-link=administration]').click()
    await expect(page.locator('#raceCreateSection')).to_be_visible()
    name=f'Browser-Test {width}'
    await page.locator('#createRace input[name=raceName]').fill(name)
@@ -69,6 +70,7 @@ async def main():
    await page.screenshot(path=str(artifacts/f'preview-race-editor-{width}.png'))
    assert not await page.locator('#raceDialog').evaluate('d=>d.scrollWidth>d.clientWidth')
    await page.locator('#closeRaceDialog').click()
+   await page.locator('[data-view-link=administration]').click()
    await page.locator('#createRace input[name=raceName]').fill(name)
    await page.locator('#createRace button').click()
    await expect(page.locator('#raceCreateNotice')).to_contain_text('bereits vorhanden')
@@ -76,6 +78,7 @@ async def main():
    await context.close()
    print(width,'PASS actual worker: draft/create/edit/publish, driver/team persistence, duplicates, points, mobile scrolling',flush=True)
   context,page,errors=await setup(390,'viewer')
+  await page.locator('[data-view-link=rennergebnisse]').click()
   await expect(page.locator('#raceCreateSection')).to_be_hidden()
   await expect(page.locator('.race-list-row').first.locator('button')).to_have_text('Ergebnisse ansehen')
   await page.locator('.race-list-row').first.locator('button').click()
@@ -91,3 +94,4 @@ async def main():
   await context.close();await browser.close()
   print('PASS spectator read-only and old-worker fallback',flush=True)
 asyncio.run(main())
+
