@@ -224,6 +224,33 @@ body:has(#auctionDialog[open]){overflow:hidden}
 .auction-launcher{align-items:flex-start;flex-direction:column;padding:23px}
 #auctionDialog .bid-controls strong{font-size:18px}
 }
+
+/* Historien, Profile und Auktionsplanung */
+.driver-link{border:0;background:none;color:inherit;padding:2px 0;min-height:44px;font:inherit;line-height:inherit;letter-spacing:inherit;text-align:left;text-decoration:underline;text-decoration-color:#626773;text-underline-offset:4px;overflow-wrap:anywhere;max-width:100%}
+.driver-link:hover:not(:disabled){background:none;color:#ffb3bd}
+.team-driver .driver-link{min-height:32px}
+.bid-history{grid-column:1/-1;border-top:1px solid #34373e;padding:24px 30px;min-width:0}
+.bid-history h4{margin:0 0 16px;font-size:17px}
+.bid-history-list,.transfer-list,.queue-list{list-style:none;margin:0;padding:0}
+.bid-history-list{max-height:280px;overflow:auto;overscroll-behavior:contain}
+.bid-history-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:12px;padding:14px 0;margin:0;border-bottom:1px solid var(--stroke);font-size:13px;overflow-wrap:anywhere}
+.section-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:28px 0 16px}
+.section-toolbar .section{margin:0}
+.transfer-row{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) auto;align-items:center;gap:16px;margin:0;padding:15px 0;border-bottom:1px solid var(--stroke);font-size:14px;overflow-wrap:anywhere}
+.transfer-row:last-child{border-bottom:0}
+.transfer-row time,.bid-history-row time{font-size:11px}
+#driverDialog{width:min(760px,calc(100% - 28px));max-width:none;max-height:calc(100dvh - 28px);padding:28px;background:#17191d;color:var(--text);border:1px solid var(--stroke);border-top:3px solid var(--red);border-radius:6px;overscroll-behavior:contain}
+#driverDialog::backdrop{background:#000c}
+body:has(#driverDialog[open]){overflow:hidden}
+#driverDialog h2{font-size:28px;overflow-wrap:anywhere;min-width:0}
+#driverDialog .transfer-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#queueSection{margin-top:28px}
+#planAuction{max-width:650px}
+.queue-row{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:18px 0;margin:0;border-bottom:1px solid var(--stroke)}
+.queue-row strong{flex:1;min-width:120px}
+.outbid-alert{position:sticky;top:90px;z-index:12;margin:0 0 20px;padding:18px;background:#382126;color:#fff1f3;border-left:3px solid var(--red);line-height:1.5}
+.auction-leader{font-weight:600}
+@media(max-width:760px){.bid-history{padding:23px}.bid-history-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.bid-history-row time{grid-column:1/-1}.transfer-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.section-toolbar{align-items:flex-start;flex-wrap:wrap}#driverDialog{padding:20px}}
 </style>
 </head>
 <body>
@@ -240,6 +267,7 @@ body:has(#auctionDialog[open]){overflow:hidden}
 <header class="topbar"><div><div class="top-heading">Fahrermarkt</div><div class="top-sub">Teams, Fahrer und Auktionen</div></div><div class="account-actions"><button id="login">Mit Discord anmelden</button><button id="logout" class="secondary hidden">Abmelden</button></div></header>
 <main id="dashboard">
 <section class="hero"><div class="hero-content"><div class="eyebrow">Racing League / Fahrermarkt</div><h1>Dein nächster Fahrer.<br><em>Dein nächstes Kapitel.</em></h1><p>Verfolge Auktionen, stelle deinen Kader zusammen und behalte dein Teambudget im Blick.</p></div></section>
+<p id="outbidAlert" class="outbid-alert hidden" role="alert"></p>
 <p id="notice" role="status" aria-live="polite"></p>
 <section id="guest" class="card"><div class="tiny-rule"></div><h2>Der Fahrermarkt deiner Liga</h2><p class="muted">Melde dich mit Discord an, um Fahrerauktionen, Teams und Gebote zu sehen. Zuschauer können ohne Teamrolle mitlesen.</p></section>
 <div id="app" class="hidden">
@@ -253,15 +281,18 @@ body:has(#auctionDialog[open]){overflow:hidden}
 <p id="auctionNotice" role="status" aria-live="polite"></p>
 <div id="auctions" class="grid"></div>
 </dialog>
+<section class="transfers-section"><div class="section-toolbar"><h2 class="section">Letzte Transfers</h2><button id="refreshTransfers" class="outline" type="button">Aktualisieren</button></div><div id="transferList" class="card"><p class="muted">Die Transferhistorie wird geladen.</p></div></section>
 <h2 id="team-section" class="section">Teams & Fahrer</h2><div id="teams" class="grid"></div>
+<dialog id="driverDialog" aria-labelledby="driverDialogTitle"><div class="auction-window-header"><h2 id="driverDialogTitle">Fahrerprofil</h2><button id="closeDriver" class="outline" type="button" autofocus>Schließen ×</button></div><div id="driverProfileBody"></div></dialog>
 <section id="admin" class="hidden"><h2 class="section">Verwaltung</h2><div class="grid">
 <form id="createTeam" class="card"><h3>Team erstellen</h3><label>Teamname<input name="name" required maxlength="60"></label><button type="submit">Erstellen</button></form>
 <form id="assignTeam" class="card"><h3>Teamchef zuweisen</h3><label>Discord-Benutzer-ID<input name="discordId" required pattern="[0-9]{15,25}"></label><label>Team<select name="teamId" id="teamSelect" required></select></label><button type="submit">Zuweisen</button></form>
 <form id="createAuction" class="card"><h3>🏎️ Fahrerauktion starten</h3><label>Fahrer<select name="driverId" id="auctionDriver" required><option value="">Fahrer auswählen</option></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><p class="muted">Gebotsschritt: 250.000 Coins</p><p class="muted">Auktionsdauer: 3 Minuten</p><button type="submit">Auktion starten</button></form>
-</div><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
+</div><section id="queueSection" class="hidden"><h3>Auktionen planen</h3><p class="muted">Geplante Auktionen starten ab dem gewählten Termin, sobald der Auktionsplatz frei ist. Prüfung ungefähr einmal pro Minute.</p><form id="planAuction" class="card"><label>Fahrer<select name="driverId" id="queueDriver" required></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><label>Termin (Zeitzone deines Geräts)<input name="scheduledAt" type="datetime-local" required></label><button type="submit">Auktion vormerken</button></form><ul id="queueList" class="queue-list"></ul><p id="discordDeliveryStatus" class="muted"></p></section><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
 </div>
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-auction-window"></script>
+<script type="module" src="app.js?v=20261110-features-v2"></script>
 </body></html>
+
