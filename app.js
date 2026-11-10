@@ -6,6 +6,7 @@ const BID_STEP = 250000;
 let token = sessionStorage.getItem('f1_session');
 let loginReturnView = null;
 let authenticated = false;
+let guestMode = !token && sessionStorage.getItem('f1_guest_mode') === '1';
 let isAdmin = false, myTeam = null, currentAuction = null, serverOffset = 0;
 let bidPending = false, selectedBid = null, selectedAuctionId = null, auctionLoading = false;
 let drivers = [];
@@ -24,10 +25,10 @@ if (location.hash.startsWith('#session=')) {
   history.replaceState(null, '', location.pathname + location.search);
   notice('Discord-Anmeldung fehlgeschlagen.');
 }
-$('login').onclick = () => { sessionStorage.setItem('f1_return_view', currentViewRoute()); location.assign(API + '/auth/start'); };
+$('login').onclick = () => { guestMode=false;sessionStorage.removeItem('f1_guest_mode');sessionStorage.setItem('f1_return_view', currentViewRoute()); location.assign(API + '/auth/start'); };
 $('logout').onclick = async () => {
   try { await fetch(API + '/api/logout', { method:'POST', headers:{Authorization:`Bearer ${token}`} }); } catch(e) { console.error(e); }
-  sessionStorage.removeItem('f1_session'); token = null; authenticated=false;applyView();location.reload();
+  sessionStorage.removeItem('f1_session');sessionStorage.removeItem('f1_guest_mode');guestMode=false;token = null; authenticated=false;applyView();location.reload();
 };
 function invalidateSession() {
   sessionStorage.removeItem('f1_session');token=null;authenticated=false;isAdmin=false;
@@ -57,7 +58,7 @@ async function boot() {
   if (!token) return;
   try {
     const me = await apiRequest('/api/me');
-    isAdmin = Boolean(me.admin); myTeam = me.team || null;authenticated=true;
+    isAdmin = Boolean(me.admin); myTeam = me.team || null;authenticated=true;guestMode=false;sessionStorage.removeItem('f1_guest_mode');
     $('login').classList.add('hidden'); $('logout').classList.remove('hidden');
     $('guest').classList.add('hidden'); $('app').classList.remove('hidden');
     $('identity').textContent = me.username; displayBalance();
@@ -587,6 +588,25 @@ $('dashboardFilter').addEventListener('submit',event=>{event.preventDefault();da
 setInterval(()=>{if(!document.hidden&&currentViewRoute()==='dashboard')loadDashboard();},60000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&currentViewRoute()==='dashboard')loadDashboard();});
 
+function updateLoginChoice() {
+  const checking = Boolean(token) && !authenticated;
+  $('loginChoice').hidden = authenticated || guestMode;
+  $('guestSession').hidden = authenticated || !guestMode;
+  $('login').disabled = checking;
+  $('guestContinue').disabled = checking;
+  $('accountActions').hidden = !authenticated;
+}
+$('guestContinue').addEventListener('click', () => {
+  if (authenticated || token) return;
+  guestMode=true;sessionStorage.setItem('f1_guest_mode','1');updateLoginChoice();
+  navigateTo('dashboard');
+  const heading=$('publicDashboard').querySelector('h2');heading.tabIndex=-1;heading.focus({preventScroll:true});
+  $('publicDashboard').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
+});
+$('returnToLogin').addEventListener('click', () => {
+  guestMode=false;sessionStorage.removeItem('f1_guest_mode');updateLoginChoice();$('login').focus();
+});
+
 const viewRoutes = {
   dashboard: { label: 'Dashboard', section: 'dashboard' },
   auktionen: { label: 'Live-Auktionen', section: 'auctions' },
@@ -634,6 +654,7 @@ function applyView(moveFocus = false) {
   if (loggedIn && route === 'rennergebnisse' && raceEnabled) loadRaceArea();
   if (loggedIn && route === 'auktionen' && moveFocus) loadAuction();
   if(route==='dashboard'&&moveFocus)loadDashboard();
+  updateLoginChoice();
 }
 for (const link of document.querySelectorAll('[data-view-link]')) link.addEventListener('click', event => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -643,6 +664,7 @@ window.addEventListener('hashchange', () => applyView(true));
 applyView();
 loadDashboard();
 boot();
+
 
 
 
