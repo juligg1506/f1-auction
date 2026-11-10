@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#080a0f">
-<title>F1 Auction | Premium Fahrer-Transfermarkt</title>
+<title>F1 Auction | Fahrermarkt</title>
 <style>
  
 /* F1 Premium – Budgetanzeige */
@@ -54,11 +54,11 @@
 :root{color-scheme:dark;font-family:Inter,system-ui,-apple-system,Arial,sans-serif;--bg:#090b10;--surface:#151922;--surface2:#1b202a;--stroke:#303541;--text:#f7f8fb;--muted:#aab3c1;--red:#f33545}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 90% 0%,#3b1521 0%,transparent 33%),var(--bg);color:var(--text)}button,input,select{font:inherit}button{border:0;border-radius:9px;background:var(--red);color:white;padding:12px 17px;font-weight:750;cursor:pointer;transition:filter .2s,transform .2s}button:hover:not(:disabled){filter:brightness(1.13);transform:translateY(-1px)}button:disabled{opacity:.45;cursor:not-allowed}.secondary{background:#303846}.outline{background:transparent;border:1px solid var(--stroke)}.hidden{display:none!important}.muted{color:var(--muted)}.red{color:var(--red)}
 .sidebar{position:fixed;inset:0 auto 0 0;width:238px;background:#101319;border-right:1px solid #2a2f39;padding:29px 17px;display:flex;flex-direction:column;z-index:20}.brand{font-size:24px;font-weight:950;letter-spacing:.6px;padding:4px 10px 32px;white-space:nowrap}.brand span{color:var(--red)}.nav-label{font-size:10px;letter-spacing:2px;font-weight:800;color:#777f90;margin:10px 13px 14px}.nav-link{display:flex;align-items:center;gap:12px;text-decoration:none;color:#abb4c3;padding:13px 15px;border-radius:10px;font-weight:700;margin-bottom:6px;transition:background .2s,color .2s}.nav-link:hover{background:#252b35;color:white}.nav-link.active{background:#431b27;color:#fff;border-left:3px solid var(--red)}.nav-icon{font-size:18px;width:24px;text-align:center}.side-bottom{margin-top:auto;padding:18px 12px 0;border-top:1px solid var(--stroke);color:#7f8897;font-size:12px;line-height:1.6}
-.page{margin-left:238px;min-width:0}.topbar{height:86px;border-bottom:1px solid #292e38;background:#11141bbd;backdrop-filter:blur(12px);display:flex;justify-content:space-between;align-items:center;padding:0 34px;gap:15px;position:sticky;top:0;z-index:10}.top-heading{font-weight:850;font-size:20px}.top-sub{font-size:12px;color:var(--muted);margin-top:4px}.account-actions{display:flex;align-items:center;gap:12px}.account-pill{background:#1d222d;border:1px solid var(--stroke);padding:10px 13px;border-radius:10px;color:#d4d9e2;font-size:12px;font-weight:750}
-main{max-width:1450px;margin:auto;padding:30px 34px 65px}.hero{position:relative;overflow:hidden;border:1px solid #65303b;border-radius:18px;min-height:270px;display:flex;align-items:center;padding:40px 42px;margin-bottom:24px;background:linear-gradient(100deg,#1a1019 0%,#26141d 43%,#0d1017 100%)}.hero:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 28px,#ffffff05 29px 30px);opacity:.55;pointer-events:none}.hero:after{content:'01';position:absolute;right:45px;bottom:-65px;font-size:290px;font-style:italic;font-weight:950;letter-spacing:-20px;color:#ffffff0a;pointer-events:none}.hero-content{position:relative;z-index:1;max-width:680px}.eyebrow{color:#ff7c8c;text-transform:uppercase;letter-spacing:2.5px;font-size:11px;font-weight:900}.hero h1{font-size:clamp(30px,4.4vw,58px);font-style:italic;letter-spacing:-1.8px;line-height:1.06;margin:14px 0}.hero h1 em{color:var(--red);font-style:inherit}.hero p{color:#c0c5d0;max-width:530px;line-height:1.65;margin:0 0 18px}.status{display:inline-flex;gap:8px;align-items:center;background:#153528;color:#9af4bb;padding:8px 12px;border-radius:99px;font-size:11px;font-weight:850;letter-spacing:.6px}.status:before{content:'';width:8px;height:8px;border-radius:50%;background:#53e79d;box-shadow:0 0 10px #53e79d80}
+.page{margin-left:238px;min-width:0}.topbar{height:86px;border-bottom:1px solid #292e38;background:#11141bbd;backdrop-filter:blur(12px);display:flex;justify-content:space-between;align-items:center;padding:0 34px;gap:15px;position:sticky;top:0;z-index:10}.top-heading{font-weight:850;font-size:20px}.top-sub{font-size:12px;color:var(--muted);margin-top:4px}.account-actions{display:flex;align-items:center;gap:12px}
+main{max-width:1450px;margin:auto;padding:30px 34px 65px}.hero{position:relative;overflow:hidden;border:1px solid #65303b;border-radius:18px;min-height:270px;display:flex;align-items:center;padding:40px 42px;margin-bottom:24px;background:linear-gradient(100deg,#1a1019 0%,#26141d 43%,#0d1017 100%)}.hero:before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 28px,#ffffff05 29px 30px);opacity:.55;pointer-events:none}.hero:after{content:'01';position:absolute;right:45px;bottom:-65px;font-size:290px;font-style:italic;font-weight:950;letter-spacing:-20px;color:#ffffff0a;pointer-events:none}.hero-content{position:relative;z-index:1;max-width:680px}.eyebrow{color:#ff7c8c;text-transform:uppercase;letter-spacing:2.5px;font-size:11px;font-weight:900}.hero h1{font-size:clamp(30px,4.4vw,58px);font-style:italic;letter-spacing:-1.8px;line-height:1.06;margin:14px 0}.hero h1 em{color:var(--red);font-style:inherit}.hero p{color:#c0c5d0;max-width:530px;line-height:1.65;margin:0 0 18px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:18px}.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.card{background:linear-gradient(145deg,#191d26,#12161e);border:1px solid var(--stroke);border-radius:15px;padding:23px;min-width:0;box-shadow:0 12px 30px #0002}.card h3{margin:0 0 17px;font-size:20px}.stat{font-size:clamp(22px,3vw,33px);font-weight:900;overflow-wrap:anywhere;margin-top:9px;letter-spacing:-.5px}.metric-label{font-size:11px;letter-spacing:1.6px;font-weight:850;color:#919cab}.section{display:flex;align-items:center;gap:12px;margin:33px 0 17px;font-size:22px;letter-spacing:-.4px}.section:before{content:'';display:block;width:5px;height:24px;background:var(--red);border-radius:5px}#notice{min-height:24px;color:#ffb8c0;margin:0 0 14px}.auction-card{grid-column:1/-1;border-color:#66313c;background:linear-gradient(110deg,#251720,#151a23 75%);position:relative;overflow:hidden}.auction-card:after{content:'LIVE';position:absolute;right:28px;top:25px;font-size:45px;font-weight:950;font-style:italic;color:#ffffff07;pointer-events:none}.auction-card h3{font-size:clamp(24px,3.4vw,38px);font-style:italic;margin-top:19px}.auction-card #auctionTimer{font-variant-numeric:tabular-nums;margin:13px 0 17px;font-size:clamp(38px,5vw,60px);letter-spacing:1px}.auction-card #bidButton{width:100%;max-width:510px;padding:16px;font-size:15px}.bid-controls{display:flex;align-items:center;gap:13px;margin:22px 0;flex-wrap:wrap}.bid-controls button{font-size:25px;min-width:56px}.bid-controls strong{font-size:23px;min-width:190px;text-align:center}.divider{border:0;border-top:1px solid var(--stroke);margin:19px 0}input,select{display:block;width:100%;background:#0d1119;border:1px solid #444b59;border-radius:9px;color:white;padding:12px;margin:7px 0 16px}input:focus,select:focus{outline:2px solid #ff3c5160;border-color:var(--red)}label{font-size:14px;color:#d2d7df;font-weight:650}ul{padding-left:21px}li{margin:9px 0}footer{color:#7e8795;text-align:center;padding:23px;font-size:12px}#guest{max-width:700px}.tiny-rule{height:3px;width:38px;background:var(--red);border-radius:5px;margin-bottom:15px}
 @media(max-width:1000px){.sidebar{width:76px;padding:25px 10px}.sidebar .brand{font-size:0;padding:8px 0 26px;text-align:center}.sidebar .brand:before{content:'F1';font-size:22px;color:var(--red)}.nav-label,.nav-text,.side-bottom{display:none}.nav-link{justify-content:center;padding:13px 8px}.nav-icon{width:auto}.page{margin-left:76px}.topbar{padding:0 22px}main{padding:23px 22px 50px}}
-@media(max-width:640px){.sidebar{position:static;width:auto;height:auto;padding:10px 12px;flex-direction:row;align-items:center;overflow-x:auto;gap:5px}.sidebar .brand{font-size:17px;padding:0 10px 0 0}.sidebar .brand:before{display:none}.nav-link{padding:9px 12px;margin:0;white-space:nowrap}.nav-text{display:inline;font-size:12px}.nav-icon{font-size:15px}.page{margin:0}.topbar{height:auto;min-height:74px;padding:12px 15px;flex-wrap:wrap}.top-heading{font-size:17px}.top-sub{font-size:11px}.account-pill{display:none}.account-actions button{padding:10px;font-size:12px}main{padding:16px 13px 45px}.hero{min-height:245px;padding:25px 21px}.hero:after{font-size:170px;bottom:-34px;right:15px}.hero h1{letter-spacing:-.7px}.summary-grid{grid-template-columns:1fr}.card{padding:19px}.section{font-size:20px}.bid-controls strong{min-width:145px;font-size:18px}}
+@media(max-width:640px){.sidebar{position:static;width:auto;height:auto;padding:10px 12px;flex-direction:row;align-items:center;overflow-x:auto;gap:5px}.sidebar .brand{font-size:17px;padding:0 10px 0 0}.sidebar .brand:before{display:none}.nav-link{padding:9px 12px;margin:0;white-space:nowrap}.nav-text{display:inline;font-size:12px}.nav-icon{font-size:15px}.page{margin:0}.topbar{height:auto;min-height:74px;padding:12px 15px;flex-wrap:wrap}.top-heading{font-size:17px}.top-sub{font-size:11px}.account-actions button{padding:10px;font-size:12px}main{padding:16px 13px 45px}.hero{min-height:245px;padding:25px 21px}.hero:after{font-size:170px;bottom:-34px;right:15px}.hero h1{letter-spacing:-.7px}.summary-grid{grid-template-columns:1fr}.card{padding:19px}.section{font-size:20px}.bid-controls strong{min-width:145px;font-size:18px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}button,.nav-link{transition:none}}
 
 /* F1 Premium – Teamkarten */
@@ -91,35 +91,91 @@ main{max-width:1450px;margin:auto;padding:30px 34px 65px}.hero{position:relative
   color: var(--team-color, #ff3c51);
 }
 
+
+/* Ruhige Oberflächen und klare Bedienelemente */
+:root{--bg:#101113;--surface:#181a1e;--stroke:#2c2e34;--muted:#a5a7af;--red:#ed3547}
+body{background:var(--bg)}
+button{min-height:44px;border:1px solid transparent;border-radius:7px;padding:11px 18px;font-weight:600;letter-spacing:0;transition:background .18s,border-color .18s}
+button:hover:not(:disabled){transform:none;filter:none;background:#cf293a}
+button:focus-visible,a:focus-visible{outline:2px solid #f6a2ac;outline-offset:4px}
+button.secondary,button.outline{background:#202226;border:1px solid #3a3d44}
+button.secondary:hover:not(:disabled),button.outline:hover:not(:disabled){background:#2b2e34}
+.sidebar{background:#141518;border-color:var(--stroke)}
+.brand{font-size:22px;font-weight:800;letter-spacing:-.8px}
+.nav-label{font-size:11px;letter-spacing:.8px;text-transform:uppercase}
+.nav-link{border-radius:6px;font-weight:500}
+.nav-link.active{background:#24262b;border-left-color:var(--red)}
+.nav-link:hover{background:#202226}
+.topbar{background:#101113f2;backdrop-filter:blur(16px);border-color:var(--stroke)}
+.top-heading{font-size:18px;font-weight:650;letter-spacing:-.4px}
+.hero{background:#17191d;border:1px solid var(--stroke);border-radius:12px;min-height:280px;padding:38px 40px}
+.hero:before{inset:32px auto 32px 0;width:3px;background:var(--red);opacity:1}
+.hero:after{display:none}
+.eyebrow{color:var(--muted);font-size:12px;font-weight:500;letter-spacing:.3px;text-transform:none}
+.hero h1{font-size:clamp(30px,4vw,52px);font-style:normal;font-weight:650;letter-spacing:-1.8px;line-height:1.15;margin:18px 0}
+.hero h1 em{color:#f5f5f7;font-weight:400}
+.hero p{color:var(--muted);font-size:15px;line-height:1.7;margin:0;max-width:490px}
+.card{background:#181a1e;border-color:var(--stroke);border-radius:10px;box-shadow:none}
+.card h3{font-weight:650}
+.stat{font-weight:650;font-variant-numeric:tabular-nums}
+.metric-label{font-weight:600;letter-spacing:.7px}
+.section{font-size:20px;font-weight:600;margin-top:32px}
+.section:before{width:3px;height:18px;border-radius:1px}
+#guest{max-width:none;padding:28px 32px}
+#guest h2{margin:0 0 10px;font-size:22px;font-weight:600;letter-spacing:-.5px}
+#guest p{max-width:570px;line-height:1.7;margin:0 0 22px}
+#guest .tiny-rule{display:none}
+#notice:empty{display:none}
+.auction-card{background:#1c191c;border-color:#513039}
+.auction-card:after{display:none}
+.auction-card h3{font-style:normal}
+input,select{border-radius:6px;background:#121316;border-color:#3a3d44;min-height:44px}
+#teams .card{background:#181a1e;border-top-width:3px;transition:border-color .18s}
+#teams .card:hover{transform:none;box-shadow:none}
+#teams .card h3{font-size:21px;font-weight:600}
+#teams .card .stat{font-weight:650}
+footer{font-size:12px;color:#9699a2}
+@media(max-width:640px){
+.sidebar{gap:2px;flex-wrap:wrap;overflow-x:visible}
+.sidebar .brand{width:100%;padding:4px 8px 10px;font-size:19px}
+.nav-link{flex:1;min-height:44px;gap:6px;padding:9px 7px}
+.nav-icon{display:none}
+.nav-text{font-size:12px}
+.hero{min-height:250px;padding:28px 23px}
+.hero h1{letter-spacing:-1px}
+#guest{padding:24px}
+}
+@media(prefers-reduced-motion:reduce){#teams .card,button{transition:none}}
+
 </style>
 </head>
 <body>
 <aside class="sidebar" aria-label="Hauptnavigation">
- <div class="brand">🏁 F1 <span>AUCTION</span></div>
- <div class="nav-label">RACING HUB</div>
+ <div class="brand">F1 <span>AUCTION</span></div>
+ <div class="nav-label">Racing League</div>
  <a class="nav-link active" href="#dashboard"><span class="nav-icon">▦</span><span class="nav-text">Dashboard</span></a>
  <a class="nav-link" href="#auction-section"><span class="nav-icon">◉</span><span class="nav-text">Live-Auktionen</span></a>
  <a class="nav-link" href="#team-section"><span class="nav-icon">▤</span><span class="nav-text">Teams</span></a>
  <a class="nav-link" href="#admin"><span class="nav-icon">⚙</span><span class="nav-text">Administration</span></a>
- <div class="side-bottom">RACING LEAGUE<br>PREMIUM TRANSFER MARKET</div>
+ <div class="side-bottom">Racing League<br>Fahrerauktionen</div>
 </aside>
 <div class="page">
-<header class="topbar"><div><div class="top-heading">FAHRER-TRANSFERMARKT</div><div class="top-sub">Racing League · Offizielle Auktionsplattform</div></div><div class="account-actions"><button id="login">Mit Discord anmelden</button><button id="logout" class="secondary hidden">Abmelden</button></div></header>
+<header class="topbar"><div><div class="top-heading">Fahrermarkt</div><div class="top-sub">Teams, Fahrer und Auktionen</div></div><div class="account-actions"><button id="login">Mit Discord anmelden</button><button id="logout" class="secondary hidden">Abmelden</button></div></header>
 <main id="dashboard">
-<section class="hero"><div class="hero-content"><div class="eyebrow">● THE ULTIMATE DRIVER MARKET</div><h1>BUILD YOUR <em>LEGACY.</em></h1><p>Dein Team. Deine Strategie. Dein Grid. Biete live auf Fahrer, verwalte dein Budget und dominiere den Transfermarkt.</p></div></section>
+<section class="hero"><div class="hero-content"><div class="eyebrow">Racing League / Fahrermarkt</div><h1>Dein nächster Fahrer.<br><em>Dein nächstes Kapitel.</em></h1><p>Verfolge Auktionen, stelle deinen Kader zusammen und behalte dein Teambudget im Blick.</p></div></section>
 <p id="notice" role="status" aria-live="polite"></p>
-<section id="guest" class="card"><div class="tiny-rule"></div><h2>Willkommen im Fahrerlager</h2><p class="muted">Melde dich mit Discord an, um Fahrerauktionen, Teams und Gebote zu sehen. Zuschauer können ohne Teamrolle mitlesen.</p><button type="button" onclick="document.getElementById('login').click()">Jetzt anmelden</button></section>
+<section id="guest" class="card"><div class="tiny-rule"></div><h2>Der Fahrermarkt deiner Liga</h2><p class="muted">Melde dich mit Discord an, um Fahrerauktionen, Teams und Gebote zu sehen. Zuschauer können ohne Teamrolle mitlesen.</p><button type="button" onclick="document.getElementById('login').click()">Mit Discord fortfahren</button></section>
 <div id="app" class="hidden">
 <div class="grid summary-grid"><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
-<h2 id="auction-section" class="section">LIVE FAHRERAUKTION</h2><div id="auctions" class="grid"></div>
-<h2 id="team-section" class="section">TEAMS & GRID</h2><div id="teams" class="grid"></div>
-<section id="admin" class="hidden"><h2 class="section">ADMIN CONTROL CENTER</h2><div class="grid">
+<h2 id="auction-section" class="section">Aktuelle Auktion</h2><div id="auctions" class="grid"></div>
+<h2 id="team-section" class="section">Teams & Fahrer</h2><div id="teams" class="grid"></div>
+<section id="admin" class="hidden"><h2 class="section">Verwaltung</h2><div class="grid">
 <form id="createTeam" class="card"><h3>Team erstellen</h3><label>Teamname<input name="name" required maxlength="60"></label><button type="submit">Erstellen</button></form>
 <form id="assignTeam" class="card"><h3>Teamchef zuweisen</h3><label>Discord-Benutzer-ID<input name="discordId" required pattern="[0-9]{15,25}"></label><label>Team<select name="teamId" id="teamSelect" required></select></label><button type="submit">Zuweisen</button></form>
 <form id="createAuction" class="card"><h3>🏎️ Fahrerauktion starten</h3><label>Fahrer<select name="driverId" id="auctionDriver" required><option value="">Fahrer auswählen</option></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><p class="muted">Gebotsschritt: 250.000 Coins</p><p class="muted">Auktionsdauer: 3 Minuten</p><button type="submit">Auktion starten</button></form>
 </div><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
 </div>
-</main><footer>F1 AUCTION · PREMIUM DRIVER TRANSFER MARKET</footer>
+</main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
 <script type="module" src="app.js?v=20261110-3"></script>
