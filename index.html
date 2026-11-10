@@ -184,6 +184,46 @@ footer{font-size:12px;color:#9699a2}
 .team-logo-slot{display:flex;align-items:center;justify-content:flex-start;min-height:76px;width:100%;max-width:200px}
 .team-logo{display:block;width:176px;height:72px;max-width:100%;object-fit:contain;object-position:left center}
 .team-logo-fallback{font-size:22px;font-weight:800;line-height:1.1;text-transform:uppercase;overflow-wrap:anywhere}
+
+/* Großes Auktionsfenster */
+.auction-launcher{display:flex;justify-content:space-between;align-items:center;gap:24px;margin:28px 0;padding:26px 28px;border:1px solid var(--stroke);border-left:3px solid var(--red);background:#17191d}
+.auction-launcher h2{margin:8px 0;font-size:26px;letter-spacing:-.6px}
+.auction-launcher p{margin:0;line-height:1.6}
+.auction-launcher button{flex-shrink:0}
+#auctionDialog{color:var(--text);background:#111316;border:1px solid #3c3f47;border-top:3px solid var(--red);border-radius:8px;width:min(1100px,calc(100% - 48px));max-width:none;max-height:calc(100dvh - 48px);padding:32px;overscroll-behavior:contain}
+#auctionDialog::backdrop{background:#000c}
+body:has(#auctionDialog[open]){overflow:hidden}
+.auction-window-header{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-bottom:24px}
+.auction-window-header h2{margin:8px 0 0;font-size:30px;letter-spacing:-.8px}
+.auction-window-header .metric-label{margin:0}
+#closeAuction{white-space:nowrap}
+#auctionNotice{color:#ffc3cb;font-size:14px;line-height:1.5}
+#auctionNotice:empty{display:none}
+#auctionDialog #auctions{display:block}
+#auctionDialog .auction-card{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);padding:0;border:1px solid #34373e;border-radius:4px;background:#171a1f;overflow:visible}
+.auction-overview{padding:30px;min-width:0}
+.auction-bidding{min-width:0;padding:30px;background:#121417;border-left:1px solid #34373e}
+#auctionDialog .auction-card h3{margin:20px 0;font-size:clamp(28px,4vw,44px);line-height:1.15;overflow-wrap:anywhere}
+.auction-live-label{font-size:11px;font-weight:650;letter-spacing:1.2px;color:#ff8e99}
+.auction-highest{border-top:1px solid #34373e;padding-top:20px;margin-top:24px;font-size:18px;line-height:1.6;font-variant-numeric:tabular-nums}
+#auctionDialog #auctionTimer{font-size:clamp(30px,4.8vw,60px);margin:12px 0 0;letter-spacing:-1px;line-height:1.2;overflow-wrap:anywhere}
+.auction-bidding h4{font-size:20px;margin:0 0 12px}
+.auction-bidding p{line-height:1.6}
+#auctionDialog .bid-controls{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:8px}
+#auctionDialog .bid-controls button{min-width:44px;min-height:48px;background:#292d34;border:1px solid #414650;padding:6px;font-size:24px}
+#auctionDialog .bid-controls strong{min-width:0;font-size:clamp(14px,1.8vw,20px);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+#auctionDialog #bidButton{max-width:none;min-height:52px;white-space:normal}
+.auction-budget{font-size:14px;color:#b7bdc7}
+@media(max-width:760px){
+#auctionDialog{width:calc(100% - 24px);max-height:calc(100dvh - 24px);padding:20px}
+#auctionDialog .auction-card{grid-template-columns:minmax(0,1fr)}
+.auction-overview,.auction-bidding{padding:23px}
+.auction-bidding{border-left:0;border-top:1px solid #34373e}
+.auction-window-header h2{font-size:25px}
+.auction-window-header .metric-label{font-size:9px;letter-spacing:.5px}
+.auction-launcher{align-items:flex-start;flex-direction:column;padding:23px}
+#auctionDialog .bid-controls strong{font-size:18px}
+}
 </style>
 </head>
 <body>
@@ -204,7 +244,15 @@ footer{font-size:12px;color:#9699a2}
 <section id="guest" class="card"><div class="tiny-rule"></div><h2>Der Fahrermarkt deiner Liga</h2><p class="muted">Melde dich mit Discord an, um Fahrerauktionen, Teams und Gebote zu sehen. Zuschauer können ohne Teamrolle mitlesen.</p></section>
 <div id="app" class="hidden">
 <div class="grid summary-grid"><div class="card"><div class="metric-label">ANGEMELDET ALS</div><div id="identity" class="stat">–</div><hr class="divider"><span class="muted">Willkommen im Racing Hub</span></div><div class="card"><div class="metric-label">MEIN TEAM</div><div id="myTeam" class="stat">Nicht zugewiesen</div><hr class="divider"><div class="metric-label">VERFÜGBARES BUDGET</div><div id="myBalance" class="stat red">–</div></div></div>
-<h2 id="auction-section" class="section">Aktuelle Auktion</h2><div id="auctions" class="grid"></div>
+<section id="auction-section" class="auction-launcher">
+<div><p class="metric-label">FAHRERMARKT</p><h2>Live-Auktion</h2><p class="muted">Fahrer, Gebote und Countdown in einer großen Übersicht.</p></div>
+<button id="openAuction" type="button" aria-haspopup="dialog" aria-controls="auctionDialog">Auktion öffnen <span aria-hidden="true">↗</span></button>
+</section>
+<dialog id="auctionDialog" aria-labelledby="auctionDialogTitle">
+<div class="auction-window-header"><div><p class="metric-label">RACING LEAGUE / FAHRERMARKT</p><h2 id="auctionDialogTitle">Live-Auktion</h2></div><button id="closeAuction" class="outline" type="button" autofocus>Schließen <span aria-hidden="true">×</span></button></div>
+<p id="auctionNotice" role="status" aria-live="polite"></p>
+<div id="auctions" class="grid"></div>
+</dialog>
 <h2 id="team-section" class="section">Teams & Fahrer</h2><div id="teams" class="grid"></div>
 <section id="admin" class="hidden"><h2 class="section">Verwaltung</h2><div class="grid">
 <form id="createTeam" class="card"><h3>Team erstellen</h3><label>Teamname<input name="name" required maxlength="60"></label><button type="submit">Erstellen</button></form>
@@ -215,5 +263,5 @@ footer{font-size:12px;color:#9699a2}
 </main><footer>F1 Auction · Racing League</footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261110-logos"></script>
+<script type="module" src="app.js?v=20261110-auction-window"></script>
 </body></html>
