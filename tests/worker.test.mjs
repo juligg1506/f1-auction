@@ -17,10 +17,10 @@ const DB={prepare:sql=>new Statement(sql),batch:async items=>{if(beforeBatch){co
 const hash=async t=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t))).toString('hex');
 const sessions=new Map();
 const tokens={admin:'a'.repeat(64),other:'b'.repeat(64),viewer:'c'.repeat(64)};
-for(const [key,token] of Object.entries(tokens))sessions.set('session:'+await hash(token),{discordId:key,username:key,admin:key==='admin'});
+for(const [key,token] of Object.entries(tokens))sessions.set('session:'+await hash(token),{discordId:key,username:key,admin:key==='admin',guildId:'1542175377961648128',membershipPolicy:1,guildVerifiedAt:Date.now(),expiresAt:Date.now()+3600000});
 const env={DB,SESSIONS:{get:async k=>sessions.get(k)||null,put:async(k,v)=>sessions.set(k,JSON.parse(v)),delete:async k=>sessions.delete(k)},DISCORD_CLIENT_ID:'test',DISCORD_CLIENT_SECRET:'test',DISCORD_REDIRECT_URI:'https://test/auth/callback',DISCORD_BOT_TOKEN:'test',DISCORD_AUCTION_CHANNEL_ID:'123456789012345678'};
 let messages=[],discordFailure=false;
-globalThis.fetch=async(url,opts)=>{if(String(url).includes('/members'))return Response.json([]);if(discordFailure)return Response.json({retry_after:60},{status:429});messages.push(JSON.parse(opts.body));return Response.json({id:'test'})};
+globalThis.fetch=async(url,opts)=>{if(String(url).includes('/members/'))return Response.json({roles:[]});if(String(url).includes('/members'))return Response.json([]);if(discordFailure)return Response.json({retry_after:60},{status:429});messages.push(JSON.parse(opts.body));return Response.json({id:'test'})};
 const pending=[];const ctx={waitUntil:p=>pending.push(p)};
 async function drain(){while(pending.length)await Promise.all(pending.splice(0));}
 async function request(path,who='admin',body){const headers={};if(who)headers.Authorization='Bearer '+tokens[who];if(body)headers['Content-Type']='application/json';const r=await worker.fetch(new Request('https://test'+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined}),env,ctx);return {status:r.status,body:await r.json()};}
@@ -122,16 +122,16 @@ assert.equal((await request('/api/admin/races/1','admin',save)).status,200);
 assert.equal((await request('/api/admin/races/1','admin',save)).status,409);
 let race=(await request('/api/races/1','viewer')).body;
 assert.equal(race.results[0].points,25);assert.equal(race.results[1].points,18);assert.equal(race.race.revision,2);
-let standings=(await request('/api/standings?season=2026',null)).body;
+let standings=(await request('/api/standings?season=2026','viewer')).body;
 assert.equal(standings.drivers[0].points,25);assert.equal(standings.teams[0].points,25);
-assert.equal((await request('/api/standings?season=2027',null)).body.drivers.length,0);
+assert.equal((await request('/api/standings?season=2027','viewer')).body.drivers.length,0);
 // Driver/team snapshots survive roster transfers and renaming.
 sql("UPDATE drivers SET team_id=2,name='Theo neu' WHERE id=1");sql("UPDATE teams SET name='Ferrari neu' WHERE id=1");
 race=(await request('/api/races/1','viewer')).body;assert.equal(race.results[0].driverName,'Theo');assert.equal(race.results[0].teamName,'Ferrari');
 assert.equal((await request('/api/admin/races','admin',{...raceHeader,name:'Monza'})).status,201);
 const next=[{driverId:1,teamId:2,position:2,status:'classified'},{driverId:2,teamId:1,position:1,status:'classified'}];
 assert.equal((await request('/api/admin/races/2','admin',{...raceHeader,name:'Monza',revision:1,status:'published',results:next})).status,200);
-standings=(await request('/api/standings?season=2026',null)).body;
+standings=(await request('/api/standings?season=2026','viewer')).body;
 assert.deepEqual(standings.drivers.map(r=>r.points),[43,43]);assert.deepEqual(standings.drivers.map(r=>r.rank),[1,1]);
 assert.equal(standings.teams.find(r=>r.id===1).points,50);assert.equal(standings.teams.find(r=>r.id===2).points,36);
 assert.equal(sql('SELECT SUM(budget) total FROM teams')[0].total,200000000);
@@ -142,13 +142,13 @@ const third={...raceHeader,name:'Spa',revision:1,status:'published',results:[{dr
 const concurrent=await Promise.all([request('/api/admin/races/3','admin',third),request('/api/admin/races/3','admin',third)]);
 assert.equal(concurrent.filter(r=>r.status===200).length,1);assert.equal(concurrent.filter(r=>r.status===409).length,1);
 assert.equal((await request('/api/races/3','viewer')).body.results.find(r=>r.driverId===1).points,0);
-standings=(await request('/api/standings?season=2026',null)).body;assert.equal(standings.drivers[0].id,2);assert.equal(standings.drivers[0].points,68);
+standings=(await request('/api/standings?season=2026','viewer')).body;assert.equal(standings.drivers[0].id,2);assert.equal(standings.drivers[0].points,68);
 assert.equal((await request('/api/admin/races/3','admin',{...third,revision:2,status:'draft'})).status,200);
-assert.equal((await request('/api/races/3','viewer')).status,404);standings=(await request('/api/standings?season=2026',null)).body;assert.deepEqual(standings.drivers.map(r=>r.points),[43,43]);
+assert.equal((await request('/api/races/3','viewer')).status,404);standings=(await request('/api/standings?season=2026','viewer')).body;assert.deepEqual(standings.drivers.map(r=>r.points),[43,43]);
 // Correcting a published race replaces, rather than adds to, existing points.
 assert.equal((await request('/api/admin/races/1','admin',{...save,revision:2,results:[{...results[0],position:3}]})).status,200);
 assert.equal((await request('/api/races/1','viewer')).body.results.length,1);
-standings=(await request('/api/standings?season=2026',null)).body;assert.equal(standings.drivers.find(r=>r.id===1).points,33);assert.equal(standings.drivers.find(r=>r.id===2).points,25);
+standings=(await request('/api/standings?season=2026','viewer')).body;assert.equal(standings.drivers.find(r=>r.id===1).points,33);assert.equal(standings.drivers.find(r=>r.id===2).points,25);
 // No double/triple tie rank regression; full countback distinguishes equal points.
 const {buildStandings}=await import('data:text/javascript;base64,'+Buffer.from(readFileSync(join(root,'worker.js'),'utf8')+'\nexport {buildStandings};').toString('base64'));
 const tie=[1,2,3].map(id=>({driverId:id,driverName:'Test '+id,teamId:null,teamName:null,points:0,status:'dnf',position:null}));
@@ -160,30 +160,30 @@ console.log('ALL AUCTION AND RACE WORKER TESTS PASSED');
 export {worker, env, ctx, drain};
 
 
-for(const path of ['/api/teams','/api/races','/api/races/1'])assert.equal((await request(path,null)).status,200);
+for(const path of ['/api/teams','/api/races','/api/races/1','/api/league','/api/calendar','/api/features','/api/standings'])assert.equal((await request(path,null)).status,401);
 for(const path of ['/api/drivers','/api/auctions','/api/transfers','/api/drivers/1','/api/driver-stats'])assert.equal((await request(path,null)).status,401);
-assert.ok((await request('/api/teams',null)).body.teams.every(team=>!('budget' in team)));
+assert.equal((await request('/api/teams',null)).status,401);
 assert.ok((await request('/api/teams','viewer')).body.teams.every(team=>Number.isFinite(team.budget)));
-assert.equal((await request('/api/standings?season=2026',null)).status,200);
-let calendar=(await request('/api/calendar?season=2026',null)).body;
+assert.equal((await request('/api/standings?season=2026','viewer')).status,200);
+let calendar=(await request('/api/calendar?season=2026','viewer')).body;
 assert.equal(calendar.calendar.length,2);assert.ok(calendar.calendar.every(row=>row.status==='published'));
 assert.ok(!calendar.calendar.some(row=>row.id===3));
 const planned={name:'Brasilien',season:'2026',raceDate:'2026-12-15',calendarVisible:true};
 assert.equal((await request('/api/admin/races','viewer',planned)).status,403);
 assert.equal((await request('/api/admin/races','admin',{...planned,calendarVisible:'yes'})).status,400);
 assert.equal((await request('/api/admin/races','admin',planned)).status,201);
-calendar=(await request('/api/calendar?season=2026',null)).body;
+calendar=(await request('/api/calendar?season=2026','viewer')).body;
 assert.equal(calendar.calendar.length,3);assert.equal(calendar.calendar[2].status,'planned');assert.equal(calendar.calendar[2].name,'Brasilien');
 assert.equal((await request('/api/races/4','viewer')).status,404);
-assert.equal((await request('/api/standings?season=2026',null)).body.drivers.find(row=>row.id===1).points,33);
+assert.equal((await request('/api/standings?season=2026','viewer')).body.drivers.find(row=>row.id===1).points,33);
 const plannedEdit={...planned,revision:1,status:'draft',results:[]};
 assert.equal((await request('/api/admin/races/4','admin',plannedEdit)).status,200);
 assert.equal((await request('/api/admin/races/4')).body.race.calendarVisible,1);
 assert.equal((await request('/api/admin/races/4','admin',{...plannedEdit,revision:2,calendarVisible:false})).status,200);
-assert.equal((await request('/api/calendar?season=2026',null)).body.calendar.length,2);
-assert.equal((await request('/api/calendar?season=2027',null)).body.calendar.length,0);
-assert.ok((await request('/api/calendar?season=2026',null)).body.calendar.every(row=>!('results' in row)&&!('revision' in row)&&!('created_by' in row)));
-console.log('PASS public standings/calendar, explicit draft calendar consent, calendar privacy and no draft points');
+assert.equal((await request('/api/calendar?season=2026','viewer')).body.calendar.length,2);
+assert.equal((await request('/api/calendar?season=2027','viewer')).body.calendar.length,0);
+assert.ok((await request('/api/calendar?season=2026','viewer')).body.calendar.every(row=>!('results' in row)&&!('revision' in row)&&!('created_by' in row)));
+console.log('PASS member standings/calendar, explicit draft calendar consent, calendar privacy and no draft points');
 
 
 let stats=(await request('/api/driver-stats?season=2026','viewer')).body;
@@ -209,27 +209,28 @@ const newcomer=stats.drivers.find(row=>row.id===4).statistics;assert.equal(newco
 assert.ok((await request('/api/driver-stats?season=2027','viewer')).body.drivers.every(row=>row.statistics.points===0&&row.statistics.rank===null));
 for(const path of ['/api/auctions/bid','/api/admin/auctions','/api/admin/queue','/api/admin/queue/1/cancel','/api/admin/races','/api/admin/races/1'])assert.equal((await request(path,null,{})).status,401);
 for(const path of ['/api/admin/races','/api/admin/races/3','/api/admin/races/options','/api/admin/queue'])assert.equal((await request(path,null)).status,401);
-assert.equal((await request('/api/races/3',null)).status,404);
-console.log('PASS public league reads, protected driver reads, no guest writes/admin/drafts, driver season statistics, DNF/DNS/DSQ, zero states and Discord-ID own profile mapping');
+assert.equal((await request('/api/races/3','viewer')).status,404);
+console.log('PASS member-only league and driver reads, no guest writes/admin/drafts, driver season statistics, DNF/DNS/DSQ, zero states and Discord-ID own profile mapping');
 
 // League portal publication and concurrency controls.
-let league=(await request('/api/league',null)).body;assert.equal(league.name,'Virtual Tier Racing');assert.equal(league.division,'Tier 1');assert.equal(league.season,null);assert.deepEqual(league.news,[]);assert.equal(league.rules,null);
+let league=(await request('/api/league','viewer')).body;assert.equal(league.name,'Virtual Tier Racing');assert.equal(league.division,'Tier 1');assert.equal(league.season,null);assert.deepEqual(league.news,[]);assert.equal(league.rules,null);
 assert.equal((await request('/api/admin/league',null)).status,401);assert.equal((await request('/api/admin/league','viewer')).status,403);
 assert.equal((await request('/api/admin/league/season','viewer',{season:'S1',revision:1})).status,403);
 assert.equal((await request('/api/admin/league/season','admin',{season:'S1',revision:1})).status,200);
 assert.equal((await request('/api/admin/league/season','admin',{season:'S2',revision:1})).status,409);
-assert.equal((await request('/api/league',null)).body.season,'S1');
+assert.equal((await request('/api/league','viewer')).body.season,'S1');
 assert.equal((await request('/api/admin/league/season','admin',{season:null,revision:2})).status,200);
 let news={kind:'news',title:'Test announcement',body:'<script>plain text</script>',status:'draft'};
 let create=(await request('/api/admin/league/content','admin',news));assert.equal(create.status,201);let nid=create.body.id;
-assert.equal((await request('/api/league',null)).body.news.length,0);
+assert.equal((await request('/api/league','viewer')).body.news.length,0);
 assert.equal((await request('/api/admin/league/content/'+nid,'admin',{...news,status:'published',revision:1})).status,200);
 assert.equal((await request('/api/admin/league/content/'+nid,'admin',{...news,revision:1})).status,409);
-league=(await request('/api/league',null)).body;assert.equal(league.news[0].body,news.body);assert.ok(!('revision' in league.news[0]));
+league=(await request('/api/league','viewer')).body;assert.equal(league.news[0].body,news.body);assert.ok(!('revision' in league.news[0]));
 assert.equal((await request('/api/admin/league/content/'+nid,'admin',{...news,revision:2})).status,200);
-assert.equal((await request('/api/league',null)).body.news.length,0);
+assert.equal((await request('/api/league','viewer')).body.news.length,0);
 assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'rules'})).status,201);
 assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'rules'})).status,409);
 assert.equal((await request('/api/admin/league/content','admin',{...news,title:''})).status,400);
-console.log('PASS public VTR Tier 1, unknown season, login-only driver area, budget privacy, CMS draft/publication and stale revisions');
+console.log('PASS member-only VTR Tier 1, unknown season, protected driver area, CMS draft/publication and stale revisions');
+
 

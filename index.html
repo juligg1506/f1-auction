@@ -362,11 +362,12 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 .racing-number{display:inline-block;margin-right:8px;padding:3px 7px;border:1px solid #38445c;color:#a5efff;font-size:.8em;font-variant-numeric:tabular-nums;border-radius:3px}.number-guide{margin:24px 0;max-width:850px}.number-guide p{line-height:1.65}.number-guide code{font-size:1.05em;color:#a5efff}.profile-racing-number{font-size:21px;font-weight:650;color:#a5efff}
 .twitch-frame{width:100%;background:#000;border:1px solid #303c55;overflow:hidden;margin:28px 0 18px}.twitch-frame iframe{display:block;width:100%;height:max(300px, min(65vw, 650px));aspect-ratio:16/9;border:0}.stream-page{max-width:1200px}.stream-page h1{margin-bottom:16px}
 .twitch-consent{margin:28px 0;max-width:900px}.twitch-consent p{line-height:1.7;color:#c1cada}.twitch-consent a{color:#83e8fa;text-decoration:underline}.twitch-consent button{margin-top:10px}#twitchRevoke{margin-bottom:14px}
+.landing-mode footer{display:flex}.landing-mode main{min-height:80svh}.landing-mode #notice{max-width:570px;margin:12px auto;width:100%}
 </style>
 <link rel="stylesheet" href="assets/vtr-brand.css?v=20261111-logo-1">
 <link rel="icon" type="image/jpeg" href="assets/vtr-logo.jpg">
 </head>
-<body>
+<body class="landing-mode">
 <aside class="sidebar" aria-label="Hauptnavigation">
 <a class="brand" href="#start" aria-label="Virtual Tier Racing Startseite"><span class="brand-logo"><img src="assets/vtr-logo.jpg" alt="VTR" width="1280" height="1280"></span><span class="brand-name">VIRTUAL TIER RACING<small>TIER 1</small></span></a>
 <button id="menuToggle" class="outline menu-toggle" aria-expanded="false" aria-controls="portalNav">Menü</button>
@@ -384,8 +385,8 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 </nav></aside>
 <div class="page">
 <header class="topbar"><div><div class="top-heading">Fahrermarkt</div><div class="top-sub">Teams, Fahrer und Auktionen</div></div><div class="account-actions" id="accountActions" hidden><button id="logout" class="secondary hidden">Abmelden</button></div></header>
-<main id="dashboard"><section id="entryScreen" class="entry-screen"><div class="entry-brand">VTR <span>TIER 1</span></div><section id="guest" class="guest-login-panel" aria-label="Anmeldung und Gastzugang">
-<div id="loginChoice" class="login-choice"><div><span class="login-logo"><img src="assets/vtr-logo.jpg" alt="Virtual Tier Racing" width="1280" height="1280"></span><h2>Dein Platz im Fahrerbereich</h2><p>Melde dich mit Discord an, um Fahrerstatistiken, dein Profil und den Fahrermarkt zu öffnen. Kalender, Ergebnisse und Teams sind öffentlich zugänglich.</p></div><div class="login-choice-actions"><button id="login" type="button">Mit Discord anmelden</button><button id="guestContinue" class="outline" type="button">Zur öffentlichen Website</button></div></div>
+<main id="dashboard"><section id="entryScreen" class="entry-screen"><div class="entry-brand">VTR <span>TIER 1</span></div><section id="guest" class="guest-login-panel" aria-label="Discord-Anmeldung für Servermitglieder">
+<div id="loginChoice" class="login-choice"><div><span class="login-logo"><img src="assets/vtr-logo.jpg" alt="Virtual Tier Racing" width="1280" height="1280"></span><h2>Zugang für Servermitglieder</h2><p>Diese Website ist ausschließlich für Mitglieder unseres Discord-Servers zugänglich. Melde dich mit Discord an. Eine Fahrer- oder Teamchefrolle ist für den Zugang nicht erforderlich.</p></div><div class="login-choice-actions"><button id="login" type="button">Mit Discord anmelden</button></div></div>
 </section></section>
 <section class="hero dashboard-hero" data-page-view="dashboard" hidden>
 <div class="hero-content"><div class="eyebrow">VIRTUAL TIER RACING / TIER 1</div><h1>VIRTUAL<br>TIER <em>RACING.</em></h1><p>Eine Liga. Ein Grid. Alles im Blick.</p><div class="hero-actions"><a class="portal-button" href="#kalender">Zum Rennkalender</a><a class="portal-button outline" href="#fahrerbereich">Fahrerbereich</a><a class="portal-button outline" href="#livestream">Livestream ansehen</a></div></div>
@@ -426,8 +427,9 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 </main><footer><span class="footer-logo"><img src="assets/vtr-logo.jpg" alt="VTR" width="1280" height="1280" loading="lazy"></span><span>Virtual Tier Racing · Tier 1<br><small>Unabhängige Community-Liga. Kein offizielles Angebot der Formel 1 oder ihrer Teams.</small></span></footer>
 </div>
 
-<script type="module" src="app.js?v=20261111-privacy-1"></script>
+<script type="module" src="app.js?v=20261111-members-1"></script>
 </body></html>
+
 
 
 

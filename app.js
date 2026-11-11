@@ -25,10 +25,10 @@ if (location.hash.startsWith('#session=')) {
   }
   history.replaceState(null, '', location.pathname + location.search);
 } else if (location.hash.startsWith('#login_error=')) {
-  history.replaceState(null, '', location.pathname + location.search);
-  notice('Discord-Anmeldung fehlgeschlagen.');
+  const notMember=location.hash.includes('not_server_member');history.replaceState(null, '', location.pathname + location.search);
+  notice(notMember?'Zugang nur für Mitglieder unseres Discord-Servers.':'Discord-Anmeldung fehlgeschlagen.');
 }
-$('login').onclick = () => { guestMode=false;sessionStorage.removeItem(GUEST_MODE_KEY);if(!sessionStorage.getItem('f1_return_view'))sessionStorage.setItem('f1_return_view','fahrerbereich'); location.assign(API + '/auth/start'); };
+$('login').onclick = () => { guestMode=false;sessionStorage.removeItem(GUEST_MODE_KEY);if(!sessionStorage.getItem('f1_return_view'))sessionStorage.setItem('f1_return_view','start'); location.assign(API + '/auth/start'); };
 $('logout').onclick = async () => {
   try { await fetch(API + '/api/logout', { method:'POST', headers:{Authorization:`Bearer ${token}`} }); } catch(e) { console.error(e); }
   sessionStorage.removeItem('f1_session');sessionStorage.removeItem(GUEST_MODE_KEY);guestMode=false;token = null; authenticated=false;applyView();location.reload();
@@ -690,8 +690,8 @@ const viewAliases={dashboard:'start','auction-section':'auktionen','results-sect
 function currentViewRoute(){const hash=location.hash.slice(1)||loginReturnView||'start';return viewRoutes[hash]?hash:viewAliases[hash]||'start';}
 function navigateTo(route){if(!viewRoutes[route])return;if(location.hash==='#'+route)applyView(true);else location.hash=route;}
 function requestDriverLogin(route='fahrerbereich'){sessionStorage.setItem('f1_return_view',route);navigateTo('anmeldung');}
-function updateLoginChoice(){const checking=Boolean(token)&&!authenticated;$('entryScreen').hidden=currentViewRoute()!=='anmeldung';$('loginChoice').hidden=false;$('guest').classList.remove('hidden');$('login').classList.remove('hidden');$('guestSession').hidden=true;$('login').disabled=checking;$('guestContinue').disabled=false;$('accountActions').hidden=!authenticated;}
-$('guestContinue').onclick=()=>{sessionStorage.removeItem('f1_return_view');navigateTo('start');};
+function updateLoginChoice(){const checking=Boolean(token)&&!authenticated;$('entryScreen').hidden=currentViewRoute()!=='anmeldung';$('loginChoice').hidden=false;$('guest').classList.remove('hidden');$('login').classList.remove('hidden');$('guestSession').hidden=true;$('login').disabled=checking;$('accountActions').hidden=!authenticated;}
+
 $('returnToLogin').onclick=()=>navigateTo('anmeldung');
 $('menuToggle').onclick=()=>{const open=document.querySelector('.sidebar').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};
 let twitchConsent = false;
@@ -710,13 +710,13 @@ $('twitchAccept').onclick=()=>{$('twitchChoiceStatus').textContent='';twitchCons
 $('twitchRevoke').onclick=()=>{resetTwitchConsent();$('twitchAccept').focus();};
 function applyView(moveFocus=false){
  let route=currentViewRoute();
- if(viewRoutes[route].protected&&!authenticated){if(token){$('entryScreen').hidden=true;return;}sessionStorage.setItem('f1_return_view',route);route='anmeldung';}
- if(authenticated&&route==='anmeldung')route='fahrerbereich';
+ if(!authenticated){if(route!=='anmeldung')sessionStorage.setItem('f1_return_view',route);route='anmeldung';}
+ else if(route==='anmeldung'){const target=loginReturnView||sessionStorage.getItem('f1_return_view');route=viewRoutes[target]&&target!=='anmeldung'?target:'start';sessionStorage.removeItem('f1_return_view');}
  if(route==='administration'&&!isAdmin)route='start';
  if(location.hash!=='#'+route)history.replaceState(null,'',location.pathname+location.search+'#'+route);
- loginReturnView=null;const view=viewRoutes[route];document.body.classList.remove('landing-mode');$('app').classList.remove('hidden');
- for(const panel of document.querySelectorAll('[data-page-view]'))panel.hidden=panel.dataset.pageView!==view.section||(panel.hasAttribute('data-auth-only')&&!authenticated);
- for(const link of document.querySelectorAll('[data-view-link]')){const key=link.dataset.viewLink;link.hidden=(['fahrerstatistiken','auktionen'].includes(key)&&!authenticated)||(key==='administration'&&!isAdmin);const active=key===route;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
+ if(authenticated)loginReturnView=null;const view=viewRoutes[route];document.body.classList.toggle('landing-mode',!authenticated);$('app').classList.toggle('hidden',!authenticated);
+ for(const panel of document.querySelectorAll('[data-page-view]'))panel.hidden=!authenticated||panel.dataset.pageView!==view.section||(panel.hasAttribute('data-auth-only')&&!authenticated);
+ for(const link of document.querySelectorAll('[data-view-link]')){const key=link.dataset.viewLink;link.hidden=!authenticated||(['fahrerstatistiken','auktionen'].includes(key)&&!authenticated)||(key==='administration'&&!isAdmin);const active=key===route;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
  document.querySelector('.top-heading').textContent=view.label;document.title=view.label+' | Virtual Tier Racing';
  document.querySelector('.sidebar').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false');updateLoginChoice();
  if(route==='fahrerbereich'&&authenticated)loadNumberRules();if(route==='livestream'){if(twitchConsent)loadTwitchPlayer();}else resetTwitchConsent();if(route==='teams')loadTeams();if(route==='rennergebnisse')loadRaceArea();if(route==='fahrerstatistiken')loadDriverStatistics();if(route==='auktionen'&&authenticated)loadAuction();if(route==='administration')loadLeagueAdmin();
@@ -726,8 +726,18 @@ function applyView(moveFocus=false){
 for(const link of document.querySelectorAll('[data-view-link]'))link.addEventListener('click',event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();navigateTo(link.dataset.viewLink);});
 window.addEventListener('hashchange',()=>applyView(true));
 applyView();
-(async()=>{await loadLeague();await loadDashboard();await boot();})();
+(async()=>{await boot();if(authenticated){await loadLeague();await loadDashboard();}})();
 
 
 setInterval(()=>{if(document.hidden)return;const route=currentViewRoute();if(route==='teams')loadTeams();if(authenticated&&route==='fahrerstatistiken')loadDriverStatistics();if(isAdmin&&route==='administration')loadNumberSyncStatus();},60000);
 
+
+
+let membershipCheckPending=false;
+async function refreshMembership(){
+ if(!authenticated||membershipCheckPending)return;membershipCheckPending=true;
+ try{await apiRequest('/api/me');}catch{if(token){invalidateSession();notice('Der Zugang konnte nicht bestätigt werden. Bitte erneut mit Discord anmelden.');}}
+ finally{membershipCheckPending=false;}
+}
+setInterval(()=>{if(!document.hidden)refreshMembership();},15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMembership();});

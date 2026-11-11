@@ -55,7 +55,7 @@ flags=1<<19;await unblock();await syncDiscordNumbers(numberEnv);assert.equal(awa
 console.log('PASS Discord rate-limit retry without reassigning; missing access/history/intent preserve cursor and later recover');
 const chronological=add(a,'!nummer 24');for(let i=0;i<105;i++)add(unknown,'ordinary message '+i);const later=add(b,'!nummer 24');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),24);assert.equal(await number(2),7);assert.equal((await first('SELECT outcome FROM discord_number_commands WHERE message_id=?',chronological.id)).outcome,'accepted');assert.equal((await first('SELECT outcome FROM discord_number_commands WHERE message_id=?',later.id)).outcome,'taken');
 await assert.rejects(()=>run('UPDATE drivers SET racing_number=7 WHERE id=1'));await assert.rejects(()=>run('UPDATE drivers SET racing_number=1.5 WHERE id=1'));
-const publicTeams=await worker.fetch(new Request('https://test/api/teams'),env,ctx);const body=await publicTeams.json();assert.ok(body.teams.flatMap(t=>t.drivers).some(d=>d.id===2&&d.racingNumber===7));
+const publicTeams=await worker.fetch(new Request('https://test/api/teams',{headers:{Authorization:'Bearer '+'a'.repeat(64)}}),env,ctx);const body=await publicTeams.json();assert.ok(body.teams.flatMap(t=>t.drivers).some(d=>d.id===2&&d.racingNumber===7));
 const read=async path=>{const r=await worker.fetch(new Request('https://test'+path,{headers:{Authorization:'Bearer '+'a'.repeat(64)}}),env,ctx);return r.json();};
 assert.equal((await read('/api/drivers/1')).driver.racingNumber,24);assert.equal((await read('/api/driver-stats')).drivers.find(d=>d.id===1).racingNumber,24);
 assert.equal((await worker.fetch(new Request('https://test/api/admin/number-sync'),numberEnv,ctx)).status,401);

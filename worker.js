@@ -42,6 +42,18 @@ async function getSession(request, env) {
   const session = await env.SESSIONS.get(key, 'json');
   return session ? { ...session, key } : null;
 }
+async function verifyServerMember(env,session){
+ const now=Date.now();if(Number.isFinite(session.guildVerifiedAt)&&now-session.guildVerifiedAt>=0&&now-session.guildVerifiedAt<15000)return true;
+ const key='membership:'+DISCORD_GUILD_ID+':'+session.discordId;
+ const cached=await env.SESSIONS.get(key,'json');if(cached?.member&&Number.isFinite(cached.checkedAt)&&now-cached.checkedAt>=0&&now-cached.checkedAt<15000)return true;
+ if(!env.DISCORD_BOT_TOKEN)throw new Error('Mitgliedschaftsprüfung ist nicht eingerichtet');
+ let response;
+ try{response=await fetch('https://discord.com/api/v10/guilds/'+DISCORD_GUILD_ID+'/members/'+session.discordId,{headers:{Authorization:'Bot '+env.DISCORD_BOT_TOKEN},signal:AbortSignal.timeout(8000)});}catch{throw new Error('Mitgliedschaft kann gerade nicht bestätigt werden');}
+ if(response.status===404){await env.SESSIONS.delete(key);return false;}
+ if(!response.ok)throw new Error('Mitgliedschaft kann gerade nicht bestätigt werden');
+ const member=await response.json();if(!Array.isArray(member.roles))throw new Error('Ungültige Antwort bei der Mitgliedschaftsprüfung');
+ await env.SESSIONS.put(key,JSON.stringify({member:true,checkedAt:Date.now()}),{expirationTtl:60});return true;
+}
 async function getDiscordTeam(accessToken) {
   const response = await fetch(
     `https://discord.com/api/v10/users/@me/guilds/${DISCORD_GUILD_ID}/member`,
@@ -53,7 +65,7 @@ async function getDiscordTeam(accessToken) {
   );
 
 if (response.status === 404) {
-  return null;
+  return {member:false,team:null};
 }
 
 if (!response.ok) {
@@ -65,7 +77,7 @@ if (!response.ok) {
     .filter(roleId => TEAM_ROLES[roleId])
     .map(roleId => TEAM_ROLES[roleId]);
 
-  return teams.length === 1 ? teams[0] : null;
+  return {member:true,team:teams.length === 1 ? teams[0] : null};
 }
 
 export default {
@@ -116,7 +128,9 @@ export default {
         }        
         const profile = await profileResponse.json();
         if (!/^\d{15,25}$/.test(profile.id)) return safeError('Invalid Discord identity', 502);
-        const discordTeam = await getDiscordTeam(tokens.access_token);
+        const membership = await getDiscordTeam(tokens.access_token);
+        if(!membership.member)return redirect(FRONTEND+'#login_error=not_server_member',{'Set-Cookie':cookie('',0)});
+        const discordTeam=membership.team;
 if (discordTeam === null) {
   await env.DB.prepare(`
     UPDATE teams
@@ -161,11 +175,23 @@ if (discordTeam) {
         discordId: profile.id,
         username: profile.global_name || profile.username,
         admin: profile.id === env.ADMIN_DISCORD_ID,
-        discordTeam: discordTeam
+        discordTeam: discordTeam,
+        guildId:DISCORD_GUILD_ID,membershipPolicy:1,guildVerifiedAt:Date.now(),expiresAt:Date.now()+3600000
         };
         await env.SESSIONS.put(sessionKey, JSON.stringify(session), { expirationTtl: 3600 });
         // Fragment never goes to GitHub Pages server. Frontend immediately removes it.
         return redirect(FRONTEND + '#session=' + sessionToken, { 'Set-Cookie': cookie('', 0), 'Referrer-Policy': 'no-referrer' });
+      }
+      if(path.startsWith('/api/')&&path!=='/api/logout'){
+        const memberSession=await getSession(request,env);
+        if(!memberSession)return safeError('Bitte mit Discord als Servermitglied anmelden',401);
+        if(memberSession.membershipPolicy!==1||memberSession.guildId!==DISCORD_GUILD_ID||!Number.isFinite(memberSession.expiresAt)||memberSession.expiresAt<=Date.now()){
+          await env.SESSIONS.delete(memberSession.key);return safeError('Bitte erneut mit Discord anmelden, um die Servermitgliedschaft zu bestätigen',401);
+        }
+        let isMember;try{isMember=await verifyServerMember(env,memberSession);}catch{return safeError('Die Discord-Mitgliedschaft kann gerade nicht geprüft werden. Bitte später erneut versuchen.',503);}
+        if(!isMember){
+          await env.SESSIONS.delete(memberSession.key);return safeError('Zugang nur für Mitglieder unseres Discord-Servers',401);
+        }
       }
       const driverRead = ['/api/drivers','/api/auctions','/api/transfers','/api/driver-stats','/api/racing-number-rules'].includes(path) || /^\/api\/drivers\/\d+$/.test(path);
       if(request.method==='GET'&&driverRead&&!await getSession(request,env))return safeError('Für den Fahrerbereich bitte mit Discord anmelden',401);
@@ -981,3 +1007,4 @@ async function syncDiscordNumbers(env) {
     console.warn('Startnummern-Synchronisierung',message);
   }finally{await env.DB.prepare('UPDATE discord_number_sync SET lease_token=NULL,lease_until=NULL WHERE channel_id=? AND lease_token=?').bind(channelId,lease).run();}
 }
+
