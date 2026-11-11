@@ -8,7 +8,7 @@ let token = sessionStorage.getItem('f1_session');
 let loginReturnView = null;
 let authenticated = false;
 let memberDriver = null;
-let guestMode = !token && sessionStorage.getItem(GUEST_MODE_KEY) === '1';
+let guestMode = false;sessionStorage.removeItem(GUEST_MODE_KEY);
 sessionStorage.removeItem('f1_guest_mode');
 let isAdmin = false, myTeam = null, currentAuction = null, serverOffset = 0;
 let bidPending = false, selectedBid = null, selectedAuctionId = null, auctionLoading = false;
@@ -28,7 +28,7 @@ if (location.hash.startsWith('#session=')) {
   history.replaceState(null, '', location.pathname + location.search);
   notice('Discord-Anmeldung fehlgeschlagen.');
 }
-$('login').onclick = () => { guestMode=false;sessionStorage.removeItem(GUEST_MODE_KEY);sessionStorage.setItem('f1_return_view', currentViewRoute()); location.assign(API + '/auth/start'); };
+$('login').onclick = () => { guestMode=false;sessionStorage.removeItem(GUEST_MODE_KEY);if(!sessionStorage.getItem('f1_return_view'))sessionStorage.setItem('f1_return_view','fahrerbereich'); location.assign(API + '/auth/start'); };
 $('logout').onclick = async () => {
   try { await fetch(API + '/api/logout', { method:'POST', headers:{Authorization:`Bearer ${token}`} }); } catch(e) { console.error(e); }
   sessionStorage.removeItem('f1_session');sessionStorage.removeItem(GUEST_MODE_KEY);guestMode=false;token = null; authenticated=false;applyView();location.reload();
@@ -138,7 +138,7 @@ async function loadTeams() {
       const amount = element('dd', 'stat', format(team.budget));
       amount.append(element('span', 'coin-unit', 'Coins'));
       budgetRow.append(element('dt', '', 'Verfügbares Budget'), amount);
-      details.append(ownerRow, budgetRow);
+      details.append(ownerRow);if(authenticated&&Number.isFinite(team.budget))details.append(budgetRow);
       const squad = element('section', 'team-squad');
       const roster = Array.isArray(team.drivers) ? team.drivers : [];
       const squadHeader = element('div', 'team-squad-header');
@@ -314,7 +314,7 @@ $('createAuction').addEventListener('submit',async event=>{
   finally{button.disabled=false;}
 });
 setInterval(updateTimer,1000);
-setInterval(()=>{if((authenticated||guestMode)&&!bidPending)loadAuction();},3000);
+setInterval(()=>{if(authenticated&&!bidPending)loadAuction();},3000);
 const ui = (tag, cls, text) => { const e = document.createElement(tag); e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const dateText = value => { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Berlin' }).format(date) : '–'; };
 function profileLink(driver) {
@@ -351,6 +351,7 @@ async function loadTransfers() {
 }
 let profileRequest = 0;
 async function openDriverProfile(id) {
+  if(!authenticated){requestDriverLogin('fahrerstatistiken');return;}
   const dialog = $('driverDialog'), request = ++profileRequest;
   const known = knownDrivers.get(Number(id));
   $('driverDialogTitle').textContent = known?.name || 'Fahrerprofil';
@@ -436,7 +437,7 @@ $('planAuction').addEventListener('submit', async event => {
 $('closeDriver').addEventListener('click', () => { profileRequest++; $('driverDialog').close(); });
 $('driverDialog').addEventListener('cancel', () => { profileRequest++; });
 $('refreshTransfers').addEventListener('click', loadTransfers);
-setInterval(() => { if ((authenticated || guestMode) && extensionReady) { loadTransfers(); if (isAdmin) loadQueue(); } }, 30000);
+setInterval(() => { if (authenticated && extensionReady) { loadTransfers(); if (isAdmin) loadQueue(); } }, 30000);
 
 let raceEnabled = false, raceOptions = { drivers: [], teams: [] }, raceLoadSequence = 0, raceOpenSequence = 0, raceSaving = false;
 let raceEditor = null, racePoints = [25,18,15,12,10,8,6,4,2,1];
@@ -462,6 +463,7 @@ async function loadRaceArea() {
     const [data, standings]=await Promise.all([apiRequest((isAdmin?'/api/admin/races':'/api/races')+'?season='+encodeURIComponent(season)),apiRequest('/api/standings?season='+encodeURIComponent(season))]);
     if (sequence!==raceLoadSequence) return;
     racePoints=data.pointsSystem;
+    $('raceFilter').hidden=!leagueState.season&&!data.seasons?.length;
     $('raceSeasons').replaceChildren(...(data.seasons||[]).map(value=>new Option(value,value)));
     $('raceList').replaceChildren();
     for (const race of data.races) {
@@ -484,7 +486,8 @@ async function openRace(id, edit) {
     const data=await apiRequest((edit?'/api/admin/races/':'/api/races/')+id);
     if (sequence!==raceOpenSequence) return;
     if (edit) {
-      raceEditor=data;racePoints=data.pointsSystem;renderRaceEditor();
+      raceEditor=data;racePoints=data.pointsSystem;
+    $('raceFilter').hidden=!leagueState.season&&!data.seasons?.length;renderRaceEditor();
     } else {
       $('raceDialogTitle').textContent=data.race.name;
       $('raceDialogBody').replaceChildren(ui('p','muted',data.race.season+' · '+raceDate(data.race.raceDate)),resultTable(['Platz','Fahrer','Team','Status','Punkte'],data.results.map(row=>[row.position??'–',row.driverName,row.teamName||'Ohne Team',raceStatusLabel[row.status],row.points]),'Rennergebnis'));
@@ -543,7 +546,7 @@ async function saveRace(status) {
   catch(error){$('raceEditorNotice').textContent=error.message;}
   finally{raceSaving=false;controls.forEach((e,i)=>e.disabled=states[i]);$('closeRaceDialog').disabled=false;}
 }
-$('raceSeason').value=String(new Date().getFullYear());$('newRaceSeason').value=$('raceSeason').value;
+$('raceSeason').value=String(new Date().getFullYear());$('newRaceSeason').value='';
 $('raceFilter').onsubmit=event=>{event.preventDefault();loadRaceArea();};
 $('createRace').onsubmit=async event=>{
   event.preventDefault();if(!isAdmin||!raceEnabled)return;
@@ -575,8 +578,9 @@ async function loadDashboard() {
   const container=$('dashboardCalendar');$('dashboardNextRace').hidden=true;
   if(dates.status==='rejected'){container.replaceChildren(ui('p','muted','Der Rennkalender konnte nicht geladen werden. Bitte erneut versuchen.'));return;}
   const calendar=dates.value.calendar||[],today=berlinToday();container.replaceChildren();
-  if(!calendar.length){container.append(ui('p','muted','Noch keine Renntermine für diese Saison veröffentlicht.'));return;}
+  if(!calendar.length){$('heroRaceName').textContent='Renntermine folgen.';$('heroRaceDate').textContent='Der Kalender wird von der Ligaleitung veröffentlicht.';container.append(ui('p','muted','Noch keine Renntermine für diese Saison veröffentlicht.'));return;}
   const next=calendar.find(race=>race.status==='planned'&&race.raceDate>=today);
+  $('heroRaceName').textContent=next?.name||'Weitere Termine folgen.';$('heroRaceDate').textContent=next?raceDate(next.raceDate):'Aktuell ist kein weiteres Rennen angekündigt.';
   if(next){$('dashboardNextRace').textContent='Nächstes Rennen: '+next.name+' · '+raceDate(next.raceDate);$('dashboardNextRace').hidden=false;}
   const list=ui('ol','calendar-list');
   for(const race of calendar){
@@ -591,8 +595,8 @@ async function loadDashboard() {
 }
 $('dashboardSeason').value=berlinToday().slice(0,4);
 $('dashboardFilter').addEventListener('submit',event=>{event.preventDefault();dashboardUserSelected=true;loadDashboard();});
-setInterval(()=>{if(!document.hidden&&(authenticated||guestMode)&&currentViewRoute()==='dashboard')loadDashboard();},60000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(authenticated||guestMode)&&currentViewRoute()==='dashboard')loadDashboard();});
+setInterval(()=>{if(!document.hidden&&authenticated&&['start','kalender'].includes(currentViewRoute()))loadDashboard();},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authenticated&&['start','kalender'].includes(currentViewRoute()))loadDashboard();});
 
 let statisticsSequence=0,statisticsAutoPicked=false,statisticsUserSelected=false;
 function statisticsGrid(s) {
@@ -612,11 +616,12 @@ function driverStatisticsSection(data) {
  return section;
 }
 async function loadDriverStatistics() {
- if(!authenticated&&!guestMode)return;
+ if(!authenticated)return;
  const sequence=++statisticsSequence,season=$('statisticsSeason').value.trim();if(!season||season.length>40)return;
  try{
   const data=await apiRequest('/api/driver-stats?season='+encodeURIComponent(season));if(sequence!==statisticsSequence)return;
   extensionReady=true;const list=data.drivers||[],seasons=data.seasons||[];
+  $('statisticsFilter').hidden=!leagueState.season&&!seasons.length;
   if(!statisticsAutoPicked&&!statisticsUserSelected&&seasons.length&&!seasons.includes(season)&&list.every(row=>!row.statistics.entries)){statisticsAutoPicked=true;$('statisticsSeason').value=seasons.find(s=>s.startsWith(berlinToday().slice(0,4)))||seasons[0];return loadDriverStatistics();}
   $('statisticsSeasons').replaceChildren(...seasons.map(s=>new Option(s,s)));
   for(const driver of list)knownDrivers.set(Number(driver.id),driver);
@@ -634,64 +639,65 @@ async function loadDriverStatistics() {
 }
 $('statisticsSeason').value=berlinToday().slice(0,4);
 $('statisticsFilter').addEventListener('submit',event=>{event.preventDefault();statisticsUserSelected=true;loadDriverStatistics();});
-let enteredBefore=false,guestReadInitialized=false,guestReadEpoch=0;
-async function loadGuestContent(epoch) {
- await Promise.all([loadTeams(),loadDrivers(),loadAuction()]);if(!guestMode||epoch!==guestReadEpoch)return;
- await loadExtensions();if(!guestMode||epoch!==guestReadEpoch)return;
- await Promise.all([loadRaceArea(),loadDriverStatistics()]);
+let leagueState={season:null},leagueRevision=1,editingContent=null,leagueContent=[];
+async function loadLeague(){
+ try{
+  const data=await apiRequest('/api/league');leagueState=data;
+  $('leagueSeasonLabel').textContent=data.season||'Noch offen';
+  if(data.season){for(const id of ['dashboardSeason','raceSeason','statisticsSeason','newRaceSeason'])$(id).value=data.season;}
+  else $('newRaceSeason').value='';
+  $('dashboardFilter').hidden=!data.season;
+  const news=$('leagueNews');news.replaceChildren();
+  for(const item of data.news||[]){const article=ui('article','');article.append(ui('p','eyebrow',dateText(item.publishedAt)),ui('h3','',item.title),ui('p','content-text',item.body));news.append(article);}
+  if(!news.childElementCount)news.append(ui('p','muted','Neuigkeiten der Ligaleitung erscheinen hier, sobald sie veröffentlicht sind.'));
+  if(data.rules)$('leagueRules').replaceChildren(ui('h2','',data.rules.title),ui('p','content-text',data.rules.body));
+  else $('leagueRules').replaceChildren(ui('h2','','Regelwerk'),ui('p','muted','Das Regelwerk wurde noch nicht veröffentlicht.'));
+ }catch{$('leagueNews').textContent='Liga-Inhalte konnten nicht geladen werden. Bitte die Seite erneut laden.';}
 }
-
-function updateLoginChoice() {
- const entered=authenticated||guestMode,checking=Boolean(token)&&!authenticated;
- $('entryScreen').hidden=entered;$('loginChoice').hidden=authenticated||guestMode;
- $('guestSession').hidden=authenticated||!guestMode;$('login').disabled=checking;$('guestContinue').disabled=checking;
- $('accountActions').hidden=!authenticated;
+async function loadLeagueAdmin(){
+ if(!isAdmin)return;
+ try{const data=await apiRequest('/api/admin/league');leagueRevision=data.settings.revision;$('leagueSeasonInput').value=data.settings.season||'';leagueContent=data.content||[];
+ $('contentList').replaceChildren();for(const item of leagueContent){const button=ui('button','outline',item.title+' · '+(item.status==='published'?'Veröffentlicht':'Entwurf'));button.type='button';button.onclick=()=>editLeagueContent(item);$('contentList').append(button);}
+ }catch(error){$('leagueAdminNotice').textContent=error.message;}
 }
-$('guestContinue').addEventListener('click',()=>{
- if(authenticated||token)return;guestMode=true;myTeam=null;memberDriver=null;isAdmin=false;
- sessionStorage.setItem(GUEST_MODE_KEY,'1');navigateTo('dashboard');applyView(true);
-});
-$('returnToLogin').addEventListener('click',()=>{
- guestMode=false;guestReadEpoch++;sessionStorage.removeItem(GUEST_MODE_KEY);
- for(const dialog of document.querySelectorAll('dialog[open]'))dialog.close();
- navigateTo('anmeldung');applyView(true);$('login').focus();
-});
+function editLeagueContent(item=null){editingContent=item;$('contentKind').value=item?.kind||'news';$('contentKind').disabled=Boolean(item);$('contentTitle').value=item?.title||'';$('contentBody').value=item?.body||'';$('contentStatus').value=item?.status||'draft';$('leagueAdminNotice').textContent='';}
+$('newContent').onclick=()=>editLeagueContent();
+$('leagueSeasonForm').onsubmit=async event=>{event.preventDefault();if(!isAdmin)return;const button=event.currentTarget.querySelector('button');button.disabled=true;try{await apiRequest('/api/admin/league/season',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({season:$('leagueSeasonInput').value.trim()||null,revision:leagueRevision})});await loadLeagueAdmin();await loadLeague();await loadDashboard();$('leagueAdminNotice').textContent='Saison gespeichert.';}catch(error){$('leagueAdminNotice').textContent=error.message;}finally{button.disabled=false;}};
+$('leagueContentForm').onsubmit=async event=>{event.preventDefault();if(!isAdmin)return;const body={kind:$('contentKind').value,title:$('contentTitle').value,body:$('contentBody').value,status:$('contentStatus').value,...(editingContent?{revision:editingContent.revision}:{})};
+ if((body.status==='published'||editingContent?.status==='published')&&!confirm(body.status==='published'?'Diesen Inhalt öffentlich veröffentlichen?':'Diesen Inhalt von der öffentlichen Website zurückziehen?'))return;
+ const button=event.currentTarget.querySelector('button');button.disabled=true;try{await apiRequest('/api/admin/league/content'+(editingContent?'/'+editingContent.id:''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});await loadLeagueAdmin();await loadLeague();editLeagueContent();$('leagueAdminNotice').textContent='Inhalt gespeichert.';}catch(error){$('leagueAdminNotice').textContent=error.message;}finally{button.disabled=false;}};
 const viewRoutes={
- anmeldung:{label:'Anmeldung',section:null},dashboard:{label:'Dashboard',section:'dashboard'},
- auktionen:{label:'Live-Auktionen',section:'auctions'},rennergebnisse:{label:'Rennergebnisse',section:'results'},
- teams:{label:'Teams & Fahrer',section:'teams'},fahrerstatistiken:{label:'Fahrerstatistiken',section:'statistics'},
- administration:{label:'Administration',section:'admin'}
+ start:{label:'Startseite',section:'dashboard'},anmeldung:{label:'Anmeldung',section:null},
+ kalender:{label:'Rennkalender',section:'calendar'},liga:{label:'Die Liga',section:'league'},
+ fahrerbereich:{label:'Fahrerbereich',section:'driver',protected:true},
+ auktionen:{label:'Live-Auktionen',section:'auctions',protected:true},
+ rennergebnisse:{label:'Rennergebnisse',section:'results'},teams:{label:'Teams & Fahrer',section:'teams'},
+ fahrerstatistiken:{label:'Fahrerstatistiken',section:'statistics',protected:true},administration:{label:'Verwaltung',section:'admin',protected:true}
 };
-const viewAliases={'auction-section':'auktionen','results-section':'rennergebnisse','team-section':'teams',admin:'administration'};
-function currentViewRoute(){const hash=location.hash.slice(1)||loginReturnView||'dashboard';return viewRoutes[hash]?hash:viewAliases[hash]||'dashboard';}
+const viewAliases={dashboard:'start','auction-section':'auktionen','results-section':'rennergebnisse','team-section':'teams',admin:'administration'};
+function currentViewRoute(){const hash=location.hash.slice(1)||loginReturnView||'start';return viewRoutes[hash]?hash:viewAliases[hash]||'start';}
 function navigateTo(route){if(!viewRoutes[route])return;if(location.hash==='#'+route)applyView(true);else location.hash=route;}
+function requestDriverLogin(route='fahrerbereich'){sessionStorage.setItem('f1_return_view',route);navigateTo('anmeldung');}
+function updateLoginChoice(){const checking=Boolean(token)&&!authenticated;$('entryScreen').hidden=currentViewRoute()!=='anmeldung';$('loginChoice').hidden=false;$('guest').classList.remove('hidden');$('login').classList.remove('hidden');$('guestSession').hidden=true;$('login').disabled=checking;$('guestContinue').disabled=false;$('accountActions').hidden=!authenticated;}
+$('guestContinue').onclick=()=>{sessionStorage.removeItem('f1_return_view');navigateTo('start');};
+$('returnToLogin').onclick=()=>navigateTo('anmeldung');
+$('menuToggle').onclick=()=>{const open=document.querySelector('.sidebar').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};
 function applyView(moveFocus=false){
- const entered=authenticated||guestMode,authPending=Boolean(token)&&!authenticated;
- let route=currentViewRoute();if(!entered&&!authPending)route='anmeldung';
- if(entered&&route==='anmeldung')route='dashboard';
- if(entered&&route==='administration'&&!isAdmin)route='dashboard';
+ let route=currentViewRoute();
+ if(viewRoutes[route].protected&&!authenticated){if(token){$('entryScreen').hidden=true;return;}sessionStorage.setItem('f1_return_view',route);route='anmeldung';}
+ if(authenticated&&route==='anmeldung')route='fahrerbereich';
+ if(route==='administration'&&!isAdmin)route='start';
  if(location.hash!=='#'+route)history.replaceState(null,'',location.pathname+location.search+'#'+route);
- loginReturnView=null;const view=viewRoutes[route];
- document.body.classList.toggle('landing-mode',!entered);$('app').classList.toggle('hidden',!entered);
- for(const panel of document.querySelectorAll('[data-page-view]'))panel.hidden=!entered||panel.dataset.pageView!==view.section||(panel.hasAttribute('data-auth-only')&&!authenticated);
- document.querySelector('.hero').hidden=!entered||route!=='dashboard';
- for(const link of document.querySelectorAll('[data-view-link]')){
-  link.hidden=!entered||(link.dataset.viewLink==='administration'&&!isAdmin);
-  const active=link.dataset.viewLink===route;link.classList.toggle('active',active);
-  if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
- }
- document.querySelector('.top-heading').textContent=view.label;
- document.querySelector('.top-sub').textContent=route==='rennergebnisse'?'Rennen, Fahrerwertung und Teamwertung':route==='fahrerstatistiken'?'Punkte, Platzierungen und Rennhistorie':'Racing League · Wertungen und Rennkalender';
- document.title=view.label+' | F1 Auction';
- if(moveFocus){window.scrollTo({top:0,behavior:'instant'});const panel=entered?document.querySelector('[data-page-view="'+view.section+'"]:not([hidden])'):null;const heading=entered?panel?.querySelector('h2,h3')||document.querySelector('.hero h1'):null;if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}else if(!entered)$('login').focus({preventScroll:true});}
- const justEntered=entered&&!enteredBefore;enteredBefore=entered;
- if(entered&&route==='rennergebnisse'&&raceEnabled)loadRaceArea();
- if(entered&&route==='auktionen'&&moveFocus)loadAuction();
- if(entered&&route==='fahrerstatistiken')loadDriverStatistics();
- if(entered&&route==='dashboard'&&(moveFocus||justEntered))loadDashboard();
- if(entered&&guestMode&&!guestReadInitialized){guestReadInitialized=true;loadGuestContent(++guestReadEpoch);}
- if(!entered)guestReadInitialized=false;
- updateLoginChoice();
+ loginReturnView=null;const view=viewRoutes[route];document.body.classList.remove('landing-mode');$('app').classList.remove('hidden');
+ for(const panel of document.querySelectorAll('[data-page-view]'))panel.hidden=panel.dataset.pageView!==view.section||(panel.hasAttribute('data-auth-only')&&!authenticated);
+ for(const link of document.querySelectorAll('[data-view-link]')){const key=link.dataset.viewLink;link.hidden=(['fahrerstatistiken','auktionen'].includes(key)&&!authenticated)||(key==='administration'&&!isAdmin);const active=key===route;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
+ document.querySelector('.top-heading').textContent=view.label;document.title=view.label+' | Virtual Tier Racing';
+ document.querySelector('.sidebar').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false');updateLoginChoice();
+ if(route==='teams')loadTeams();if(route==='rennergebnisse')loadRaceArea();if(route==='fahrerstatistiken')loadDriverStatistics();if(route==='auktionen'&&authenticated)loadAuction();if(route==='administration')loadLeagueAdmin();
+ if(route==='start'||route==='kalender')loadDashboard();
+ if(moveFocus){window.scrollTo({top:0,behavior:'instant'});const panel=document.querySelector('[data-page-view="'+view.section+'"]:not([hidden])');const heading=panel?.querySelector('h1,h2,h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}else if(route==='anmeldung')$('login').focus({preventScroll:true});}
 }
 for(const link of document.querySelectorAll('[data-view-link]'))link.addEventListener('click',event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();navigateTo(link.dataset.viewLink);});
-window.addEventListener('hashchange',()=>applyView(true));applyView();boot();
+window.addEventListener('hashchange',()=>applyView(true));
+applyView();
+(async()=>{await loadLeague();await loadDashboard();await boot();})();

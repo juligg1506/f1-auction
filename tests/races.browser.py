@@ -24,10 +24,11 @@ async def main():
    return context,page,errors
   for width in [1440,820,390,320]:
    context,page,errors=await setup(width)
-   await page.locator('[data-view-link=administration]').click()
+   await page.evaluate("location.hash='administration'")
    await expect(page.locator('#raceCreateSection')).to_be_visible()
    name=f'Browser-Test {width}'
    await page.locator('#createRace input[name=raceName]').fill(name)
+   await page.locator('#newRaceSeason').fill('2026')
    await page.locator('#createRace input[name=raceDate]').fill('2026-11-11')
    await page.locator('#createRace button').click()
    await page.locator('#raceEditorForm').wait_for()
@@ -70,7 +71,7 @@ async def main():
    await page.screenshot(path=str(artifacts/f'preview-race-editor-{width}.png'))
    assert not await page.locator('#raceDialog').evaluate('d=>d.scrollWidth>d.clientWidth')
    await page.locator('#closeRaceDialog').click()
-   await page.locator('[data-view-link=administration]').click()
+   await page.evaluate("location.hash='administration'")
    await page.locator('#createRace input[name=raceName]').fill(name)
    await page.locator('#createRace button').click()
    await expect(page.locator('#raceCreateNotice')).to_contain_text('bereits vorhanden')
@@ -78,8 +79,9 @@ async def main():
    await page.unroute_all(behavior='ignoreErrors');await context.close()
    print(width,'PASS actual worker: draft/create/edit/publish, driver/team persistence, duplicates, points, mobile scrolling',flush=True)
   context,page,errors=await setup(390,'viewer')
-  await page.locator('[data-view-link=rennergebnisse]').click()
+  await page.evaluate("location.hash='rennergebnisse'")
   await expect(page.locator('#raceCreateSection')).to_be_hidden()
+  await page.locator('#raceSeason').fill('2026');await page.locator('#raceFilter button').click()
   await expect(page.locator('.race-list-row').first.locator('button')).to_have_text('Ergebnisse ansehen')
   await page.locator('.race-list-row').filter(has=page.get_by_role('heading',name='Browser-Test 320',exact=True)).locator('button').click()
   await expect(page.locator('#raceDialogBody tbody tr')).to_have_count(2)
@@ -89,6 +91,7 @@ async def main():
   await page.unroute_all(behavior='ignoreErrors');await context.close()
   context,page,errors=await setup(820,'admin',True)
   await expect(page.locator('#raceCreateSection')).to_be_hidden()
+  await page.evaluate("location.hash='rennergebnisse'")
   await expect(page.locator('#raceList')).to_have_text('Noch keine Rennergebnisse verfügbar.')
   assert not errors,errors
   await page.unroute_all(behavior='ignoreErrors');await context.close();await browser.close()

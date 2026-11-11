@@ -29,7 +29,7 @@ function reset(){try{unlinkSync(dbfile)}catch{};const base=`CREATE TABLE teams(i
 CREATE TABLE drivers(id INTEGER PRIMARY KEY,name TEXT,team_id INTEGER REFERENCES teams(id),discord_id TEXT UNIQUE,discord_active INTEGER);
 CREATE TABLE auctions(id INTEGER PRIMARY KEY AUTOINCREMENT,driver_id INTEGER REFERENCES drivers(id),starting_price INTEGER,ends_at TEXT,status TEXT,leading_bid_id INTEGER);
 CREATE TABLE bids(id INTEGER PRIMARY KEY AUTOINCREMENT,auction_id INTEGER REFERENCES auctions(id),team_id INTEGER REFERENCES teams(id),amount INTEGER,created_at TEXT);`;
-for(const statement of (base+(readFileSync(join(root,'migrations/001_auction_features.sql'),'utf8')+readFileSync(join(root,'migrations/002_race_results.sql'),'utf8')+readFileSync(join(root,'migrations/003_public_calendar.sql'),'utf8')).replace(/^--.*$/gm,'')).split(';').filter(s=>s.trim()))sql(statement);
+for(const statement of (base+(readFileSync(join(root,'migrations/001_auction_features.sql'),'utf8')+readFileSync(join(root,'migrations/002_race_results.sql'),'utf8')+readFileSync(join(root,'migrations/003_public_calendar.sql'),'utf8')+readFileSync(join(root,'migrations/004_league_portal.sql'),'utf8')).replace(/^--.*$/gm,'')).split(';').filter(s=>s.trim()))sql(statement);
 sql("INSERT INTO teams VALUES(1,'Ferrari','admin',100000000),(2,'McLaren','other',100000000)");sql("INSERT INTO drivers VALUES(1,'Theo',NULL,'100',1),(2,'Moritz',1,'200',1)");messages=[];discordFailure=false;}
 async function cron(){worker.scheduled({},env,ctx);await drain()}
 reset();
@@ -156,7 +156,10 @@ console.log('ALL AUCTION AND RACE WORKER TESTS PASSED');
 export {worker, env, ctx, drain};
 
 
-for(const path of ['/api/teams','/api/drivers','/api/auctions','/api/transfers','/api/races','/api/races/1','/api/drivers/1'])assert.equal((await request(path,null)).status,200);
+for(const path of ['/api/teams','/api/races','/api/races/1'])assert.equal((await request(path,null)).status,200);
+for(const path of ['/api/drivers','/api/auctions','/api/transfers','/api/drivers/1','/api/driver-stats'])assert.equal((await request(path,null)).status,401);
+assert.ok((await request('/api/teams',null)).body.teams.every(team=>!('budget' in team)));
+assert.ok((await request('/api/teams','viewer')).body.teams.every(team=>Number.isFinite(team.budget)));
 assert.equal((await request('/api/standings?season=2026',null)).status,200);
 let calendar=(await request('/api/calendar?season=2026',null)).body;
 assert.equal(calendar.calendar.length,2);assert.ok(calendar.calendar.every(row=>row.status==='published'));
@@ -179,11 +182,11 @@ assert.ok((await request('/api/calendar?season=2026',null)).body.calendar.every(
 console.log('PASS public standings/calendar, explicit draft calendar consent, calendar privacy and no draft points');
 
 
-let stats=(await request('/api/driver-stats?season=2026',null)).body;
+let stats=(await request('/api/driver-stats?season=2026','viewer')).body;
 let theo=stats.drivers.find(row=>row.id===1).statistics;
 assert.deepEqual({points:theo.points,starts:theo.starts,wins:theo.wins,podiums:theo.podiums,best:theo.bestFinish,average:theo.averageFinish,rank:theo.rank},{points:33,starts:2,wins:0,podiums:2,best:2,average:2.5,rank:1});
-assert.equal((await request('/api/drivers/1?season=2026',null)).body.raceResults.length,2);
-assert.equal((await request('/api/drivers/1?season=2026',null)).body.statistics.points,33);
+assert.equal((await request('/api/drivers/1?season=2026','viewer')).body.raceResults.length,2);
+assert.equal((await request('/api/drivers/1?season=2026','viewer')).body.statistics.points,33);
 assert.ok(!('discordId' in stats.drivers[0]));assert.ok(!('discord_id' in stats.drivers[0]));
 sql("UPDATE drivers SET discord_id='viewer' WHERE id=1");
 assert.equal((await request('/api/me','viewer')).body.driver.id,1);
@@ -193,14 +196,35 @@ assert.equal((await request('/api/me','other')).body.driver,null);
 sql("INSERT INTO drivers VALUES(3,'Test DSQ',NULL,'300',1),(4,'Test Neuling',NULL,'400',1)");
 const mixed={name:'Brasilien',season:'2026',raceDate:'2026-12-15',revision:3,status:'published',calendarVisible:false,results:[{driverId:1,teamId:2,position:null,status:'dnf'},{driverId:2,teamId:1,position:null,status:'dns'},{driverId:3,teamId:null,position:null,status:'dsq'}]};
 assert.equal((await request('/api/admin/races/4','admin',mixed)).status,200);
-stats=(await request('/api/driver-stats?season=2026',null)).body;
+stats=(await request('/api/driver-stats?season=2026','viewer')).body;
 theo=stats.drivers.find(row=>row.id===1).statistics;
 assert.equal(theo.starts,3);assert.equal(theo.retirements,1);assert.equal(theo.points,33);assert.equal(theo.averageFinish,2.5);
 const moritz=stats.drivers.find(row=>row.id===2).statistics;assert.equal(moritz.entries,2);assert.equal(moritz.starts,1);assert.equal(moritz.dns,1);
 const dsq=stats.drivers.find(row=>row.id===3).statistics;assert.equal(dsq.disqualifications,1);assert.equal(dsq.points,0);assert.equal(dsq.bestFinish,null);
 const newcomer=stats.drivers.find(row=>row.id===4).statistics;assert.equal(newcomer.starts,0);assert.equal(newcomer.rank,null);
-assert.ok((await request('/api/driver-stats?season=2027',null)).body.drivers.every(row=>row.statistics.points===0&&row.statistics.rank===null));
+assert.ok((await request('/api/driver-stats?season=2027','viewer')).body.drivers.every(row=>row.statistics.points===0&&row.statistics.rank===null));
 for(const path of ['/api/auctions/bid','/api/admin/auctions','/api/admin/queue','/api/admin/queue/1/cancel','/api/admin/races','/api/admin/races/1'])assert.equal((await request(path,null,{})).status,401);
 for(const path of ['/api/admin/races','/api/admin/races/3','/api/admin/races/options','/api/admin/queue'])assert.equal((await request(path,null)).status,401);
 assert.equal((await request('/api/races/3',null)).status,404);
-console.log('PASS guest all public reads but no writes/admin/drafts, driver season statistics, DNF/DNS/DSQ, zero states and Discord-ID own profile mapping');
+console.log('PASS public league reads, protected driver reads, no guest writes/admin/drafts, driver season statistics, DNF/DNS/DSQ, zero states and Discord-ID own profile mapping');
+
+// League portal publication and concurrency controls.
+let league=(await request('/api/league',null)).body;assert.equal(league.name,'Virtual Tier Racing');assert.equal(league.division,'Tier 1');assert.equal(league.season,null);assert.deepEqual(league.news,[]);assert.equal(league.rules,null);
+assert.equal((await request('/api/admin/league',null)).status,401);assert.equal((await request('/api/admin/league','viewer')).status,403);
+assert.equal((await request('/api/admin/league/season','viewer',{season:'S1',revision:1})).status,403);
+assert.equal((await request('/api/admin/league/season','admin',{season:'S1',revision:1})).status,200);
+assert.equal((await request('/api/admin/league/season','admin',{season:'S2',revision:1})).status,409);
+assert.equal((await request('/api/league',null)).body.season,'S1');
+assert.equal((await request('/api/admin/league/season','admin',{season:null,revision:2})).status,200);
+let news={kind:'news',title:'Test announcement',body:'<script>plain text</script>',status:'draft'};
+let create=(await request('/api/admin/league/content','admin',news));assert.equal(create.status,201);let nid=create.body.id;
+assert.equal((await request('/api/league',null)).body.news.length,0);
+assert.equal((await request('/api/admin/league/content/'+nid,'admin',{...news,status:'published',revision:1})).status,200);
+assert.equal((await request('/api/admin/league/content/'+nid,'admin',{...news,revision:1})).status,409);
+league=(await request('/api/league',null)).body;assert.equal(league.news[0].body,news.body);assert.ok(!('revision' in league.news[0]));
+assert.equal((await request('/api/admin/league/content/'+nid,'admin',{...news,revision:2})).status,200);
+assert.equal((await request('/api/league',null)).body.news.length,0);
+assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'rules'})).status,201);
+assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'rules'})).status,409);
+assert.equal((await request('/api/admin/league/content','admin',{...news,title:''})).status,400);
+console.log('PASS public VTR Tier 1, unknown season, login-only driver area, budget privacy, CMS draft/publication and stale revisions');

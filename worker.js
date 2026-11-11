@@ -167,6 +167,8 @@ if (discordTeam) {
         // Fragment never goes to GitHub Pages server. Frontend immediately removes it.
         return redirect(FRONTEND + '#session=' + sessionToken, { 'Set-Cookie': cookie('', 0), 'Referrer-Policy': 'no-referrer' });
       }
+      const driverRead = ['/api/drivers','/api/auctions','/api/transfers','/api/driver-stats'].includes(path) || /^\/api\/drivers\/\d+$/.test(path);
+      if(request.method==='GET'&&driverRead&&!await getSession(request,env))return safeError('Für den Fahrerbereich bitte mit Discord anmelden',401);
       if (path === '/api/drivers' && request.method === 'GET') {
   const result = await env.DB.prepare(`
     SELECT id, name
@@ -179,6 +181,7 @@ if (discordTeam) {
 }
 
 if (path === '/api/teams' && request.method === 'GET') {
+  const viewerSession=await getSession(request,env);
   const result = await env.DB.prepare(`
     SELECT id, name, budget, owner_discord_id
     FROM teams
@@ -194,7 +197,7 @@ if (path === '/api/teams' && request.method === 'GET') {
   `).all();
 
   const teams = await Promise.all(result.results.map(async team => ({
-    id: team.id, name: team.name, budget: team.budget,
+    id: team.id, name: team.name, budget: viewerSession ? team.budget : undefined,
     owner_username: team.owner_discord_id ? (await env.SESSIONS.get('profile:' + team.owner_discord_id, 'json'))?.username || null : null,
     drivers: driversResult.results
       .filter(driver => driver.team_id === team.id)
@@ -427,7 +430,7 @@ try {
 }
 
 if (path === '/api/features' && request.method === 'GET') {
-  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, guestReadOnly: true, driverStatistics: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
+  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, guestReadOnly: true, driverStatistics: true, leaguePortal: true, protectedDriverArea: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
 }
 if (path === '/api/transfers' && request.method === 'GET') {
   return json({ transfers: await transferHistory(env) }, 200, cors);
@@ -576,6 +579,49 @@ if (isRaceAdminPath || isRacePublicPath) {
     } catch (error) { return safeError('Ergebnisse wurden zwischenzeitlich geändert oder konnten nicht gespeichert werden. Bitte das Rennen neu öffnen.', 409); }
   }
   return safeError('Route oder Methode nicht gefunden', 404);
+}
+
+if(path==='/api/league'&&request.method==='GET'){
+ const data=await env.DB.batch([
+  env.DB.prepare('SELECT season, revision FROM league_settings WHERE id=1'),
+  env.DB.prepare("SELECT id,title,body,published_at AS publishedAt FROM league_content WHERE kind='news' AND status='published' ORDER BY published_at DESC,id DESC LIMIT 20"),
+  env.DB.prepare("SELECT id,title,body,published_at AS publishedAt FROM league_content WHERE kind='rules' AND status='published' LIMIT 1")
+ ]);
+ return json({name:'Virtual Tier Racing',division:'Tier 1',season:data[0].results[0]?.season||null,seasonRevision:data[0].results[0]?.revision||1,news:data[1].results,rules:data[2].results[0]||null},200,cors);
+}
+if(path==='/api/admin/league'||path.startsWith('/api/admin/league/')){
+ const session=await getSession(request,env);if(!session)return safeError('Nicht angemeldet',401);if(!session.admin)return safeError('Nur die Ligaleitung darf Inhalte bearbeiten',403);
+ if(path==='/api/admin/league'&&request.method==='GET'){
+  const data=await env.DB.batch([env.DB.prepare('SELECT season,revision FROM league_settings WHERE id=1'),env.DB.prepare('SELECT id,kind,title,body,status,revision,published_at AS publishedAt FROM league_content ORDER BY updated_at DESC,id DESC LIMIT 100')]);
+  return json({settings:data[0].results[0],content:data[1].results},200,cors);
+ }
+ if(path==='/api/admin/league/season'&&request.method==='POST'){
+  const body=await request.json().catch(()=>null);
+  if(!body||!(body.season===null||typeof body.season==='string')||!Number.isSafeInteger(body.revision)||body.revision<1)return safeError('Saison oder Revision ungültig',400);
+  const season=body.season===null?null:body.season.trim()||null;if(season&&season.length>40)return safeError('Saisonbezeichnung zu lang',400);
+  const result=await env.DB.prepare('UPDATE league_settings SET season=?,revision=revision+1,updated_at=? WHERE id=1 AND revision=?').bind(season,new Date().toISOString(),body.revision).run();
+  if(result.meta.changes!==1)return safeError('Die Saison wurde zwischenzeitlich geändert. Bitte neu laden.',409);
+  return json({ok:true,revision:body.revision+1},200,cors);
+ }
+ const update=/^\/api\/admin\/league\/content\/(\d+)$/.exec(path);
+ if((path==='/api/admin/league/content'||update)&&request.method==='POST'){
+  const body=await request.json().catch(()=>null);
+  if(!body||!['news','rules'].includes(body.kind)||typeof body.title!=='string'||typeof body.body!=='string'||!['draft','published'].includes(body.status))return safeError('Inhalt ungültig',400);
+  const title=body.title.trim(),text=body.body.trim();if(!title||title.length>120||!text||text.length>10000)return safeError('Titel (max. 120) und Text (max. 10.000 Zeichen) sind erforderlich',400);
+  const now=new Date().toISOString();
+  try{
+   if(update){
+    if(!Number.isSafeInteger(body.revision)||body.revision<1)return safeError('Revision ungültig',400);
+    const result=await env.DB.prepare(`UPDATE league_content SET title=?,body=?,status=?,published_at=CASE WHEN ?='published' THEN COALESCE(published_at,?) ELSE published_at END,revision=revision+1,updated_at=? WHERE id=? AND kind=? AND revision=?`)
+     .bind(title,text,body.status,body.status,now,now,Number(update[1]),body.kind,body.revision).run();
+    if(result.meta.changes!==1)return safeError('Dieser Inhalt wurde zwischenzeitlich geändert. Bitte neu öffnen.',409);
+    return json({ok:true,revision:body.revision+1},200,cors);
+   }
+   const result=await env.DB.prepare('INSERT INTO league_content(kind,title,body,status,published_at,created_by,updated_at) VALUES(?,?,?,?,?,?,?) RETURNING id,revision').bind(body.kind,title,text,body.status,body.status==='published'?now:null,session.discordId,now).all();
+   return json({ok:true,...result.results[0]},201,cors);
+  }catch(error){return safeError('Inhalt konnte nicht gespeichert werden. Ein Regelwerk ist möglicherweise bereits angelegt.',409);}
+ }
+ return safeError('Route oder Methode nicht gefunden',404);
 }
 
   return safeError('Not found', 404);
@@ -808,3 +854,4 @@ async function driverRaceHistory(env,id,season) {
    FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE rr.driver_id=? AND r.status='published' AND r.season=?
    ORDER BY r.race_date DESC,r.id DESC LIMIT 50`).bind(id,season).all()).results;
 }
+

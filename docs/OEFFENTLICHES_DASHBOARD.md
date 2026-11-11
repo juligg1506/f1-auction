@@ -1,3 +1,5 @@
+> Aktualisierung: Die Zugriffsregeln und Navigation wurden durch das [VTR-Ligaportal](LIGAPORTAL.md) ersetzt. Öffentlich sind Startseite, Kalender, Ergebnisse, Teams und Liga; individuelle Statistiken, Profile und Auktionen verlangen jetzt Discord-Anmeldung. Die folgenden Details zu Berechnung und bestehender Datenstruktur gelten weiter.
+
 # Öffentliches Dashboard und Rennkalender
 
 **Aktuelle Zugangsregel:** Vor dem Einstieg erscheint nur die Anmeldeauswahl. Nach „Als Gast fortfahren“ sind alle öffentlichen Ansichten lesbar, auch Auktionen, Teams, Ergebnisdetails und Statistiken. Schreib-/Adminzugriffe bleiben geschützt. Die folgende Kalender- und Dashboardbeschreibung gilt unverändert; siehe [FAHRERSTATISTIKEN.md](FAHRERSTATISTIKEN.md) für den erweiterten Gastzugang.
