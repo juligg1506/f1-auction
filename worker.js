@@ -167,7 +167,7 @@ if (discordTeam) {
         // Fragment never goes to GitHub Pages server. Frontend immediately removes it.
         return redirect(FRONTEND + '#session=' + sessionToken, { 'Set-Cookie': cookie('', 0), 'Referrer-Policy': 'no-referrer' });
       }
-      const driverRead = ['/api/drivers','/api/auctions','/api/transfers','/api/driver-stats'].includes(path) || /^\/api\/drivers\/\d+$/.test(path);
+      const driverRead = ['/api/drivers','/api/auctions','/api/transfers','/api/driver-stats','/api/racing-number-rules'].includes(path) || /^\/api\/drivers\/\d+$/.test(path);
       if(request.method==='GET'&&driverRead&&!await getSession(request,env))return safeError('Für den Fahrerbereich bitte mit Discord anmelden',401);
       if (path === '/api/drivers' && request.method === 'GET') {
   const result = await env.DB.prepare(`
@@ -581,6 +581,10 @@ if (isRaceAdminPath || isRacePublicPath) {
   return safeError('Route oder Methode nicht gefunden', 404);
 }
 
+if(path==='/api/racing-number-rules'&&request.method==='GET'){
+ const reserved=await env.DB.prepare('SELECT number,driver_name AS driverName,season FROM reserved_racing_numbers ORDER BY number').all();
+ return json({min:1,max:99,checkedOn:'2026-11-11',source:'https://www.formula1.com/en/drivers',reserved:reserved.results},200,cors);
+}
 if(path==='/api/admin/number-sync'&&request.method==='GET'){
  const session=await getSession(request,env);if(!session)return safeError('Nicht angemeldet',401);if(!session.admin)return safeError('Nur Ligaleitung',403);
  const status=await env.DB.prepare('SELECT last_checked_at AS lastCheckedAt,last_error AS lastError FROM discord_number_sync WHERE channel_id=?').bind(env.DISCORD_NUMBER_CHANNEL_ID||'').first();
@@ -913,12 +917,13 @@ async function collectNumberMessages(env,channelId,cursor,deadline) {
 async function commitNumberMessage(env,channelId,lease,cursor,message,command,eligible) {
   const now=new Date().toISOString(),guardArgs=[channelId,lease,now,cursor],statements=[];
   if(command){
-    statements.push(env.DB.prepare(`INSERT INTO discord_number_commands(message_id,channel_id,discord_id,requested_number,outcome,created_at,next_attempt_at)
+    statements.push(env.DB.prepare(`INSERT INTO discord_number_commands(message_id,channel_id,discord_id,requested_number,outcome,created_at,next_attempt_at,rejection_reason)
       SELECT ?,?,?,?,CASE WHEN ? IS NULL THEN 'invalid'
+      WHEN EXISTS(SELECT 1 FROM reserved_racing_numbers WHERE number=?) THEN 'invalid'
       WHEN ?=0 OR NOT EXISTS(SELECT 1 FROM drivers WHERE discord_id=? AND discord_active=1) THEN 'unknown_driver'
-      WHEN EXISTS(SELECT 1 FROM drivers WHERE racing_number=? AND discord_id<>?) THEN 'taken' ELSE 'accepted' END,?,?
+      WHEN EXISTS(SELECT 1 FROM drivers WHERE racing_number=? AND discord_id<>?) THEN 'taken' ELSE 'accepted' END,?,?,CASE WHEN EXISTS(SELECT 1 FROM reserved_racing_numbers WHERE number=?) THEN 'f1_reserved' ELSE NULL END
       WHERE ${numberLeaseGuard} ON CONFLICT(message_id) DO NOTHING`)
-      .bind(message.id,channelId,message.author.id,command.number,command.number,eligible?1:0,message.author.id,command.number,message.author.id,now,now,...guardArgs));
+      .bind(message.id,channelId,message.author.id,command.number,command.number,command.number,eligible?1:0,message.author.id,command.number,message.author.id,now,now,command.number,...guardArgs));
     statements.push(env.DB.prepare(`UPDATE drivers SET racing_number=? WHERE discord_id=? AND discord_active=1
       AND EXISTS(SELECT 1 FROM discord_number_commands WHERE message_id=? AND outcome='accepted') AND ${numberLeaseGuard}`)
       .bind(command.number,message.author.id,message.id,...guardArgs));
@@ -928,13 +933,14 @@ async function commitNumberMessage(env,channelId,lease,cursor,message,command,el
   const results=await env.DB.batch(statements);return results.at(-1).meta.changes===1;
 }
 function numberReply(item) {
+  if(item.outcome==='invalid'&&item.rejection_reason==='f1_reserved')return 'Startnummer #'+item.requested_number+' ist für '+(item.reservedDriverName||'einen echten Formel-1-Fahrer')+' in der Formel 1 reserviert und in unserer Liga gesperrt. Deine bisherige Nummer bleibt unverändert. Bitte wähle eine andere Nummer.';
   if(item.outcome==='accepted')return 'Deine Startnummer ist jetzt #'+item.requested_number+'. Sie wird auf der Website angezeigt. Du kannst sie jederzeit mit !nummer <1–99> ändern.';
   if(item.outcome==='taken')return 'Startnummer #'+item.requested_number+' ist bereits vergeben. Deine bisherige Nummer bleibt unverändert. Wähle eine andere Nummer mit !nummer <1–99>.';
   if(item.outcome==='unknown_driver')return 'Dein Konto ist noch keinem aktiven Liga-Fahrer zugeordnet oder dir fehlt die Fahrerrolle. Bitte wende dich an die Ligaleitung. Es wurde keine Nummer geändert.';
-  return 'Bitte schreibe !nummer gefolgt von einer Zahl von 1 bis 99, zum Beispiel: !nummer 44. Es wurde keine Nummer geändert.';
+  return 'Bitte schreibe !nummer gefolgt von einer Zahl von 1 bis 99, zum Beispiel: !nummer 7. Es wurde keine Nummer geändert.';
 }
 async function deliverNumberReplies(env,channelId,lease,deadline) {
-  const items=(await env.DB.prepare(`SELECT * FROM discord_number_commands WHERE channel_id=? AND delivered_at IS NULL AND next_attempt_at<=? ORDER BY length(message_id),message_id LIMIT 5`).bind(channelId,new Date().toISOString()).all()).results;
+  const items=(await env.DB.prepare(`SELECT c.*,r.driver_name AS reservedDriverName FROM discord_number_commands c LEFT JOIN reserved_racing_numbers r ON r.number=c.requested_number WHERE c.channel_id=? AND c.delivered_at IS NULL AND c.next_attempt_at<=? ORDER BY length(c.message_id),c.message_id LIMIT 5`).bind(channelId,new Date().toISOString()).all()).results;
   for(const item of items){
     if(Date.now()>deadline)return;
     const own=await env.DB.prepare('SELECT 1 AS ok FROM discord_number_sync WHERE channel_id=? AND lease_token=? AND lease_until>?').bind(channelId,lease,new Date().toISOString()).first();if(!own)return;

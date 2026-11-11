@@ -1,7 +1,7 @@
 import {worker, env, ctx, drain} from './worker.test.mjs';
 import {createServer} from 'node:http';
-await env.DB.prepare('UPDATE drivers SET racing_number=44 WHERE id=1').run();
-await env.DB.prepare('UPDATE drivers SET racing_number=16 WHERE id=2').run();
+await env.DB.prepare('UPDATE drivers SET racing_number=7 WHERE id=1').run();
+await env.DB.prepare('UPDATE drivers SET racing_number=8 WHERE id=2').run();
 // Isolated active auction fixture for read-only guest browser checks.
 await env.DB.prepare("INSERT INTO auctions (driver_id, starting_price, ends_at, status) VALUES (1,2500000,?,'active')").bind(new Date(Date.now()+180000).toISOString()).run();
 createServer(async (req,res)=>{

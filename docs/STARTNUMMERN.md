@@ -1,6 +1,6 @@
 # Startnummern über Discord
 
-Im Kanal `1570008456981905460` auf dem Liga-Server `1542175377961648128` können Fahrer mit `!nummer 44` eine freie Startnummer von 1 bis 99 wählen. Die Nummer kann jederzeit geändert werden. Führende Nullen, Zusatzargumente und andere Zahlen sind ungültig. Eine erfolgreiche Änderung gibt die vorherige Nummer frei; eine abgelehnte Änderung verändert sie nicht. Ein erneuter Befehl mit derselben eigenen Nummer ist erlaubt.
+Im Kanal `1570008456981905460` auf dem Liga-Server `1542175377961648128` können Fahrer mit `!nummer 7` eine freie Startnummer von 1 bis 99 wählen. Die Nummern der echten F1-Fahrer aus der Saison 2026 sind gesperrt. Die Nummer kann jederzeit geändert werden. Führende Nullen, Zusatzargumente und andere Zahlen sind ungültig. Eine erfolgreiche Änderung gibt die vorherige Nummer frei; eine abgelehnte Änderung verändert sie nicht. Ein erneuter Befehl mit derselben eigenen Nummer ist erlaubt.
 
 Der Bot ordnet ausschließlich die Discord-ID des Nachrichtenautors zu. Das Konto muss als aktiver Fahrer vorliegen und aktuell die Fahrerrolle `1569398144998051890` besitzen. Es gibt keine Zuordnung anhand von Namen und keine Möglichkeit, mit einem Befehl die Nummer eines anderen Fahrers zu ändern. Bots, Webhooks, andere Kanäle und andere Nachrichtentypen werden ignoriert. Auch eine direkte Erwähnung des Bots vor dem Befehl ist möglich.
 
@@ -36,3 +36,16 @@ python3 tests/numbers.browser.py
 ```
 
 Die Worker-Tests verwenden SQLite und simulieren ausschließlich Discord-Antworten. Sie prüfen Änderung/Freigabe, belegte Nummern, Werteprüfung, Rollenprüfung, parallele Cron-Aufrufe, überholte Leases, Rate Limits, ausstehende Antworten, Seitennavigation und geschützte API-Zugriffe. Die Browser-Prüfung verwendet isolierte Nummern-Fixtures für vier Bildschirmbreiten. Sie sendet keine Discord-Nachrichten und verändert keine Produktivdaten.
+
+
+## Reservierte F1-Nummern
+
+Migration `006_reserved_f1_numbers.sql` wird nach Migration 005 genau einmal angewendet. Grundlage sind die offiziellen Fahrerprofile auf [Formula1.com](https://www.formula1.com/en/drivers), geprüft am 11. November 2026. Die Daten enthalten die aktuelle Fahrerliste einschließlich Rafael Câmara sowie Esteban Ocon als Saisonfahrer. Jede Nummer verweist in der Datenbank auf das zugehörige offizielle Profil.
+
+Gesperrt sind: 1, 3, 5, 6, 10, 11, 12, 14, 16, 18, 23, 27, 30, 31, 41, 43, 44, 51, 55, 63, 77, 81, 87.
+
+Diese versionierte Liste wird nicht automatisch bei jedem Befehl von einer externen Website abgerufen. Bei einem Saison- oder Fahrerwechsel muss die Ligaleitung die Liste anhand der offiziellen Profile aktualisieren. Die Liga-Saison bleibt davon unabhängig und kann weiterhin offen sein.
+
+Der Worker prüft die Sperrliste atomar bei der Verarbeitung des Befehls. Er lehnt gesperrte Nummern mit dem Namen des echten F1-Fahrers ab; eine bereits vorhandene zulässige Liga-Nummer bleibt erhalten. Datenbank-Trigger verhindern zusätzlich, dass ein anderer Schreibweg eine F1-Nummer vergibt. Die Migration entfernt gegebenenfalls bestehende gesperrte Zuweisungen und korrigiert noch nicht versendete Bestätigungen dafür. Zum Einführungszeitpunkt gab es keine zugewiesenen Liga-Nummern.
+
+`GET /api/racing-number-rules` liefert die Regeln und die Sperrliste ausschließlich nach Anmeldung. Im Fahrerbereich kann die Liste aufgeklappt werden. Das Befehlsbeispiel lautet jetzt `!nummer 7`, weil 44 für Lewis Hamilton gesperrt ist. Die Tests prüfen alle Einträge der Sperrliste, unveränderte bisherige Nummern, die Erklärung im Kanal sowie direkte Datenbank-Inserts und -Updates.

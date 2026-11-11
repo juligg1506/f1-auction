@@ -17,12 +17,12 @@ async def main():
      await route.fulfill(response=r)
     await page.route('**/api/**',api);await page.route('https://media.formula1.com/**',lambda r:r.abort())
     await page.goto('https://juligg1506.github.io/f1-auction/#teams',wait_until='networkidle')
-    await expect(page.locator('.team-roster .racing-number').first).to_have_text('#16')
+    await expect(page.locator('.team-roster .racing-number').first).to_have_text('#8')
     await expect(page.locator('.team-roster .racing-number')).to_have_count(2)
     if auth:
-     await page.locator('.team-roster .driver-link').first.click();await expect(page.locator('#driverDialogTitle')).to_contain_text('#16');await expect(page.locator('.profile-racing-number')).to_have_text('Startnummer #16');await page.locator('#closeDriver').click()
-     await page.evaluate("location.hash='fahrerstatistiken'");await expect(page.locator('#ownStatistics')).to_contain_text('#44');await expect(page.locator('#statisticsList .racing-number')).to_have_count(2)
-     await page.evaluate("location.hash='fahrerbereich'");await expect(page.locator('.number-guide')).to_be_visible();await expect(page.locator('.number-guide a')).to_have_attribute('href','https://discord.com/channels/1542175377961648128/1570008456981905460')
+     await page.locator('.team-roster .driver-link').first.click();await expect(page.locator('#driverDialogTitle')).to_contain_text('#8');await expect(page.locator('.profile-racing-number')).to_have_text('Startnummer #8');await page.locator('#closeDriver').click()
+     await page.evaluate("location.hash='fahrerstatistiken'");await expect(page.locator('#ownStatistics')).to_contain_text('#7');await expect(page.locator('#statisticsList .racing-number')).to_have_count(2)
+     await page.evaluate("location.hash='fahrerbereich'");await expect(page.locator('.number-guide')).to_be_visible();await page.locator('.number-rules summary').click();await expect(page.locator('#numberRules')).to_contain_text('#44 (Lewis Hamilton)');await expect(page.locator('.number-guide a')).to_have_attribute('href','https://discord.com/channels/1542175377961648128/1570008456981905460')
      await page.screenshot(path=str(root/'tests'/f'numbers-{width}.png'),full_page=True)
     else:
      await page.locator('.team-roster .driver-link').first.click();await expect(page.locator('#entryScreen')).to_be_visible()

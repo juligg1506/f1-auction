@@ -21,42 +21,56 @@ globalThis.fetch=async(url,options={})=>{
  if(u.pathname.includes('/members/')){const id=u.pathname.split('/').at(-1);return Response.json({roles:id===bot?['botrole']:missingRole.has(id)?[]:[role]});}
  if(u.pathname.endsWith('/channels/'+channel+'/messages')){
   if(options.method==='POST'){
-   const data=JSON.parse(options.body);assert.deepEqual(data.allowed_mentions,{parse:[],replied_user:false});assert.equal(data.enforce_nonce,true);assert.ok(data.nonce.length<=25);
+   const data=JSON.parse(options.body);assert.deepEqual(data.allowed_mentions,{parse:[],replied_user:false});assert.equal(data.enforce_nonce,true);assert.ok(data.nonce.length<=21);
    if(replyFail)return Response.json({retry_after:120},{status:429});replies.push(data);return Response.json({id:String(++sequence)});
   }
   let rows=chat.filter(m=>!u.searchParams.has('before')||BigInt(m.id)<BigInt(u.searchParams.get('before'))).sort((x,y)=>BigInt(x.id)>BigInt(y.id)?-1:1);return Response.json(rows.slice(0,Number(u.searchParams.get('limit'))||100));
  }
  throw Error('Unexpected Discord request '+u.pathname);
 };
-assert.deepEqual(parseNumberCommand('!nummer 44',bot),{number:44});assert.equal(parseNumberCommand('Hallo',bot),null);assert.deepEqual(parseNumberCommand('<@'+bot+'> !nummer 7',bot),{number:7});
-add(a,'!nummer 44');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),44);assert.ok(replies[0].content.includes('#44'));
-add(b,'!nummer 44');await syncDiscordNumbers(numberEnv);assert.equal(await number(2),null);assert.ok(replies.at(-1).content.includes('bereits vergeben'));
-add(a,'!nummer 16');add(b,'!nummer 44');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),16);assert.equal(await number(2),44);
-add(a,'!nummer 44');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),16);
-for(const text of ['!nummer 0','!nummer 100','!nummer -1','!nummer 44.5','!nummer 44 <@'+b+'>','!nummer 004','!nummer'])add(a,text);
-await syncDiscordNumbers(numberEnv);assert.equal(await number(1),16);
-add(a,'!nummer 77',{author:{id:a,bot:true}});add(a,'!nummer 77',{webhook_id:'111'});add(unknown,'!nummer 77');missingRole.add(b);add(b,'!nummer 77');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),16);assert.equal(await number(2),44);missingRole.clear();
+assert.deepEqual(parseNumberCommand('!nummer 7',bot),{number:7});assert.equal(parseNumberCommand('Hallo',bot),null);assert.deepEqual(parseNumberCommand('<@'+bot+'> !nummer 7',bot),{number:7});
+add(a,'!nummer 7');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),7);assert.ok(replies[0].content.includes('#7'));
+add(b,'!nummer 7');await syncDiscordNumbers(numberEnv);assert.equal(await number(2),null);assert.ok(replies.at(-1).content.includes('bereits vergeben'));
+add(a,'!nummer 8');add(b,'!nummer 7');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),8);assert.equal(await number(2),7);
+add(a,'!nummer 7');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),8);
+for(const text of ['!nummer 0','!nummer 100','!nummer -1','!nummer 7.5','!nummer 7 <@'+b+'>','!nummer 004','!nummer'])add(a,text);
+await syncDiscordNumbers(numberEnv);assert.equal(await number(1),8);
+add(a,'!nummer 28',{author:{id:a,bot:true}});add(a,'!nummer 28',{webhook_id:'111'});add(unknown,'!nummer 28');missingRole.add(b);add(b,'!nummer 28');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),8);assert.equal(await number(2),7);missingRole.clear();
 assert.equal((await first("SELECT COUNT(*) AS n FROM discord_number_commands WHERE outcome='invalid'")).n,7);
 assert.equal((await first("SELECT COUNT(*) AS n FROM discord_number_commands WHERE outcome='unknown_driver'")).n,2);
 console.log('PASS number allocation/change/release, taken preserves old number, parsing/range, bot/webhook filtering and current Discord role ownership');
 const before=(await first('SELECT COUNT(*) AS n FROM discord_number_commands')).n;
-add(a,'!nummer 23');await Promise.all([syncDiscordNumbers(numberEnv),syncDiscordNumbers(numberEnv)]);assert.equal(await number(1),23);assert.equal((await first('SELECT COUNT(*) AS n FROM discord_number_commands')).n,before+1);
+add(a,'!nummer 19');await Promise.all([syncDiscordNumbers(numberEnv),syncDiscordNumbers(numberEnv)]);assert.equal(await number(1),19);assert.equal((await first('SELECT COUNT(*) AS n FROM discord_number_commands')).n,before+1);
 const oldBatch=env.DB.batch;let steal=true;
 env.DB.batch=async items=>{if(steal&&items.some(x=>x.sql.includes('INSERT INTO discord_number_commands'))){steal=false;await run("UPDATE discord_number_sync SET lease_token='new-owner'");}return oldBatch(items);};
-const contested=add(a,'!nummer 24');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),23);assert.equal(await first('SELECT * FROM discord_number_commands WHERE message_id=?',contested.id),null);env.DB.batch=oldBatch;await unblock();await syncDiscordNumbers(numberEnv);assert.equal(await number(1),24);
+const contested=add(a,'!nummer 20');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),19);assert.equal(await first('SELECT * FROM discord_number_commands WHERE message_id=?',contested.id),null);env.DB.batch=oldBatch;await unblock();await syncDiscordNumbers(numberEnv);assert.equal(await number(1),20);
 console.log('PASS overlapping cron lease and stale worker cannot mutate numbers or consume a command');
 while((await first('SELECT COUNT(*) AS n FROM discord_number_commands WHERE delivered_at IS NULL')).n)await syncDiscordNumbers(numberEnv);
-replyFail=true;const retry=add(a,'!nummer 25');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),25);let status=await first('SELECT * FROM discord_number_commands WHERE message_id=?',retry.id);assert.equal(status.delivered_at,null);assert.equal(status.attempts,1);assert.ok(Date.parse(status.next_attempt_at)>Date.now()+100000);
-replyFail=false;await unblock();await run("UPDATE discord_number_commands SET next_attempt_at='2000-01-01T00:00:00Z' WHERE message_id=?",retry.id);await syncDiscordNumbers(numberEnv);assert.ok((await first('SELECT delivered_at FROM discord_number_commands WHERE message_id=?',retry.id)).delivered_at);assert.equal(await number(1),25);
-const rejected=add(a,'!nummer 26');channelForbidden=true;await syncDiscordNumbers(numberEnv);assert.equal(await number(1),25);assert.ok((await first('SELECT last_error FROM discord_number_sync')).last_error.includes('403'));
-channelForbidden=false;await unblock();denyHistory=true;await syncDiscordNumbers(numberEnv);assert.equal(await number(1),25);assert.ok((await first('SELECT last_error FROM discord_number_sync')).last_error.includes('Nachrichtenverlauf'));
-denyHistory=false;await unblock();flags=0;await syncDiscordNumbers(numberEnv);assert.equal(await number(1),25);assert.ok((await first('SELECT last_error FROM discord_number_sync')).last_error.includes('Message Content Intent'));
-flags=1<<19;await unblock();await syncDiscordNumbers(numberEnv);assert.equal(await number(1),26);assert.equal((await first('SELECT last_error FROM discord_number_sync')).last_error,null);
+replyFail=true;const retry=add(a,'!nummer 21');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),21);let status=await first('SELECT * FROM discord_number_commands WHERE message_id=?',retry.id);assert.equal(status.delivered_at,null);assert.equal(status.attempts,1);assert.ok(Date.parse(status.next_attempt_at)>Date.now()+100000);
+replyFail=false;await unblock();await run("UPDATE discord_number_commands SET next_attempt_at='2000-01-01T00:00:00Z' WHERE message_id=?",retry.id);await syncDiscordNumbers(numberEnv);assert.ok((await first('SELECT delivered_at FROM discord_number_commands WHERE message_id=?',retry.id)).delivered_at);assert.equal(await number(1),21);
+const rejected=add(a,'!nummer 22');channelForbidden=true;await syncDiscordNumbers(numberEnv);assert.equal(await number(1),21);assert.ok((await first('SELECT last_error FROM discord_number_sync')).last_error.includes('403'));
+channelForbidden=false;await unblock();denyHistory=true;await syncDiscordNumbers(numberEnv);assert.equal(await number(1),21);assert.ok((await first('SELECT last_error FROM discord_number_sync')).last_error.includes('Nachrichtenverlauf'));
+denyHistory=false;await unblock();flags=0;await syncDiscordNumbers(numberEnv);assert.equal(await number(1),21);assert.ok((await first('SELECT last_error FROM discord_number_sync')).last_error.includes('Message Content Intent'));
+flags=1<<19;await unblock();await syncDiscordNumbers(numberEnv);assert.equal(await number(1),22);assert.equal((await first('SELECT last_error FROM discord_number_sync')).last_error,null);
 console.log('PASS Discord rate-limit retry without reassigning; missing access/history/intent preserve cursor and later recover');
-const chronological=add(a,'!nummer 55');for(let i=0;i<105;i++)add(unknown,'ordinary message '+i);const later=add(b,'!nummer 55');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),55);assert.equal(await number(2),44);assert.equal((await first('SELECT outcome FROM discord_number_commands WHERE message_id=?',chronological.id)).outcome,'accepted');assert.equal((await first('SELECT outcome FROM discord_number_commands WHERE message_id=?',later.id)).outcome,'taken');
-await assert.rejects(()=>run('UPDATE drivers SET racing_number=44 WHERE id=1'));await assert.rejects(()=>run('UPDATE drivers SET racing_number=1.5 WHERE id=1'));
-const publicTeams=await worker.fetch(new Request('https://test/api/teams'),env,ctx);const body=await publicTeams.json();assert.ok(body.teams.flatMap(t=>t.drivers).some(d=>d.id===2&&d.racingNumber===44));
+const chronological=add(a,'!nummer 24');for(let i=0;i<105;i++)add(unknown,'ordinary message '+i);const later=add(b,'!nummer 24');await syncDiscordNumbers(numberEnv);assert.equal(await number(1),24);assert.equal(await number(2),7);assert.equal((await first('SELECT outcome FROM discord_number_commands WHERE message_id=?',chronological.id)).outcome,'accepted');assert.equal((await first('SELECT outcome FROM discord_number_commands WHERE message_id=?',later.id)).outcome,'taken');
+await assert.rejects(()=>run('UPDATE drivers SET racing_number=7 WHERE id=1'));await assert.rejects(()=>run('UPDATE drivers SET racing_number=1.5 WHERE id=1'));
+const publicTeams=await worker.fetch(new Request('https://test/api/teams'),env,ctx);const body=await publicTeams.json();assert.ok(body.teams.flatMap(t=>t.drivers).some(d=>d.id===2&&d.racingNumber===7));
 const read=async path=>{const r=await worker.fetch(new Request('https://test'+path,{headers:{Authorization:'Bearer '+'a'.repeat(64)}}),env,ctx);return r.json();};
-assert.equal((await read('/api/drivers/1')).driver.racingNumber,55);assert.equal((await read('/api/driver-stats')).drivers.find(d=>d.id===1).racingNumber,55);
+assert.equal((await read('/api/drivers/1')).driver.racingNumber,24);assert.equal((await read('/api/driver-stats')).drivers.find(d=>d.id===1).racingNumber,24);
 assert.equal((await worker.fetch(new Request('https://test/api/admin/number-sync'),numberEnv,ctx)).status,401);
 console.log('PASS paginated newest-first history is applied chronologically; DB uniqueness/type checks; API exposes numbers without weakening authentication');
+
+const oldNumber=await number(1);
+const blocked=(await env.DB.prepare('SELECT number,driver_name FROM reserved_racing_numbers ORDER BY number').all()).results;
+assert.equal(blocked.length,23);
+for(const row of blocked)add(a,'!nummer '+row.number);
+await syncDiscordNumbers(numberEnv);assert.equal(await number(1),oldNumber);
+assert.equal((await first("SELECT COUNT(*) AS n FROM discord_number_commands WHERE rejection_reason='f1_reserved'")).n,blocked.length);
+while((await first('SELECT COUNT(*) AS n FROM discord_number_commands WHERE delivered_at IS NULL')).n)await syncDiscordNumbers(numberEnv);
+const hamilton=replies.find(r=>r.content.includes('Lewis Hamilton'));assert.ok(hamilton);assert.ok(hamilton.content.includes('#44'));assert.ok(hamilton.content.includes('gesperrt'));
+await assert.rejects(()=>run('UPDATE drivers SET racing_number=44 WHERE id=1'));
+await assert.rejects(()=>run("INSERT INTO drivers(id,name,discord_active,racing_number) VALUES(90,'Forbidden',1,16)"));
+const anon=await worker.fetch(new Request('https://test/api/racing-number-rules'),env,ctx);assert.equal(anon.status,401);
+const rules=await read('/api/racing-number-rules');assert.equal(rules.reserved.length,23);assert.equal(rules.reserved.find(r=>r.number===44).driverName,'Lewis Hamilton');assert.ok(!rules.reserved.some(r=>r.number===7));
+console.log('PASS all official F1 numbers rejected, previous choice preserved, named Discord explanation, DB insert/update enforcement and protected rules API');

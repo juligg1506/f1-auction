@@ -656,6 +656,10 @@ async function loadLeague(){
   else $('leagueRules').replaceChildren(ui('h2','','Regelwerk'),ui('p','muted','Das Regelwerk wurde noch nicht veröffentlicht.'));
  }catch{$('leagueNews').textContent='Liga-Inhalte konnten nicht geladen werden. Bitte die Seite erneut laden.';}
 }
+async function loadNumberRules(){
+ if(!authenticated)return;
+ try{const data=await apiRequest('/api/racing-number-rules');$('numberRules').textContent='Gesperrte F1-Nummern (Saison '+[...new Set(data.reserved.map(row=>row.season))].join(', ')+'): '+data.reserved.map(row=>'#'+row.number+' ('+row.driverName+')').join(', ')+'.';}catch{$('numberRules').textContent='Die Sperrliste konnte nicht geladen werden. Der Bot prüft jede Nummer vor der Vergabe.';}
+}
 async function loadNumberSyncStatus(){
  if(!isAdmin)return;
  try{const data=await apiRequest('/api/admin/number-sync');$('numberSyncStatus').textContent=!data.configured?'Startnummern-Kanal noch nicht eingerichtet.':data.status?.lastError?'Startnummern: '+data.status.lastError:data.status?.lastCheckedAt?'Startnummern zuletzt geprüft: '+dateText(data.status.lastCheckedAt)+(data.pendingReplies?' · Antworten ausstehend: '+data.pendingReplies:''):'Startnummern: erster Abruf steht noch aus.';}catch{$('numberSyncStatus').textContent='Der Startnummern-Status konnte nicht geladen werden.';}
@@ -700,7 +704,7 @@ function applyView(moveFocus=false){
  for(const link of document.querySelectorAll('[data-view-link]')){const key=link.dataset.viewLink;link.hidden=(['fahrerstatistiken','auktionen'].includes(key)&&!authenticated)||(key==='administration'&&!isAdmin);const active=key===route;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
  document.querySelector('.top-heading').textContent=view.label;document.title=view.label+' | Virtual Tier Racing';
  document.querySelector('.sidebar').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false');updateLoginChoice();
- if(route==='teams')loadTeams();if(route==='rennergebnisse')loadRaceArea();if(route==='fahrerstatistiken')loadDriverStatistics();if(route==='auktionen'&&authenticated)loadAuction();if(route==='administration')loadLeagueAdmin();
+ if(route==='fahrerbereich'&&authenticated)loadNumberRules();if(route==='teams')loadTeams();if(route==='rennergebnisse')loadRaceArea();if(route==='fahrerstatistiken')loadDriverStatistics();if(route==='auktionen'&&authenticated)loadAuction();if(route==='administration')loadLeagueAdmin();
  if(route==='start'||route==='kalender')loadDashboard();
  if(moveFocus){window.scrollTo({top:0,behavior:'instant'});const panel=document.querySelector('[data-page-view="'+view.section+'"]:not([hidden])');const heading=panel?.querySelector('h1,h2,h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}else if(route==='anmeldung')$('login').focus({preventScroll:true});}
 }
