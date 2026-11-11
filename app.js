@@ -601,21 +601,49 @@ setInterval(()=>{if(!document.hidden&&authenticated&&['start','kalender'].includ
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authenticated&&['start','kalender'].includes(currentViewRoute()))loadDashboard();});
 
 let statisticsSequence=0,statisticsAutoPicked=false,statisticsUserSelected=false;
-function statisticsGrid(s) {
- const grid=ui('dl','driver-stat-grid');
- for(const [label,value]of[['Punkte',s.points],['Rennstarts',s.starts],['Siege',s.wins],['Podien',s.podiums],['Beste Platzierung',s.bestFinish??'–'],['Meisterschaftsrang',s.rank??'–']]){
-  const cell=ui('div','driver-stat');cell.append(ui('dt','',label),ui('dd','',String(value)));grid.append(cell);
- }
+function statisticCells(values,className) {
+ const grid=ui('dl',className);
+ for(const [label,value]of values){const cell=ui('div','driver-stat');cell.append(ui('dt','',label),ui('dd','',String(value)));grid.append(cell);}
  return grid;
 }
+function statisticsGrid(s) {
+ return statisticCells([['Punkte',s.points],['Rennstarts',s.starts],['Siege',s.wins],['Podien',s.podiums]],'driver-stat-grid');
+}
+function statisticsDetails(s) {
+ const section=ui('div','stats-details');
+ section.append(statisticCells([['WM-Platz',s.rank==null?'–':'P'+s.rank],['Bestes Ergebnis',s.bestFinish==null?'–':'P'+s.bestFinish],['Ø Platzierung',s.averageFinish==null?'–':format(s.averageFinish)],['Top-10-Ergebnisse',s.top10]],'stats-detail-grid'));
+ const statuses=ui('p','stats-statuses');
+ for(const [label,value]of[['Ausfälle',s.retirements],['Nicht gestartet',s.dns],['Disqualifikationen',s.disqualifications]]){const item=ui('span','');item.append(ui('strong','',String(value)),document.createTextNode(' '+label));statuses.append(item);}
+ section.append(statuses,ui('p','stats-note','Ø Platzierung berücksichtigt nur gewertete Ergebnisse.'));return section;
+}
+function driverRaceList(rows) {
+ const list=ui('ol','stats-race-list');
+ for(const row of rows){
+  const item=ui('li','stats-race-row'),classified=row.status==='classified'&&Number.isInteger(row.position);
+  const result=ui('span','stats-finish'+(classified&&row.position<=3?' stats-finish-podium':''),classified?'P'+row.position:raceStatusLabel[row.status]||'–');
+  const race=ui('div','stats-race-name');race.append(ui('h4','',row.raceName),ui('p','',raceDate(row.raceDate)+' · '+(row.teamName||'Ohne Team')));
+  const points=ui('div','stats-race-points');points.append(ui('strong','',String(row.points)),ui('span','','Punkte'));
+  item.append(result,race,points);list.append(item);
+ }
+ return list;
+}
 function driverStatisticsSection(data) {
- const section=ui('section','driver-statistics');section.append(ui('h3','','Statistiken · '+data.season),statisticsGrid(data.statistics));
- const details=ui('p','muted');const s=data.statistics;
- details.textContent='Top 10: '+s.top10+' · Ausfälle: '+s.retirements+' · Nicht gestartet: '+s.dns+' · Disqualifikationen: '+s.disqualifications+' · Ø gewertete Platzierung: '+(s.averageFinish==null?'–':format(s.averageFinish));section.append(details);
+ const section=ui('section','driver-statistics');section.append(ui('h3','','Saison '+data.season),statisticsGrid(data.statistics),statisticsDetails(data.statistics));
  section.append(ui('h3','','Rennergebnisse'));
- section.append(data.raceResults?.length?resultTable(['Rennen','Datum','Team','Platz / Status','Punkte'],data.raceResults.map(row=>[row.raceName,raceDate(row.raceDate),row.teamName||'Ohne Team',row.position??raceStatusLabel[row.status],row.points]),'Veröffentlichte Rennergebnisse dieses Fahrers'):ui('p','muted','Für diese Saison sind noch keine veröffentlichten Rennergebnisse vorhanden.'));
- if(data.raceResults?.length===50)section.append(ui('p','muted','Die letzten 50 Ergebnisse werden angezeigt; die Statistik zählt alle veröffentlichten Rennen dieser Saison.'));
+ section.append(data.raceResults?.length?driverRaceList(data.raceResults):ui('p','stats-empty','Noch keine veröffentlichten Rennergebnisse in dieser Saison.'));
+ if(data.raceResults?.length===50)section.append(ui('p','stats-note','Die letzten 50 Ergebnisse werden angezeigt; die Statistik zählt alle veröffentlichten Rennen dieser Saison.'));
  return section;
+}
+function personalStatistics(data,season) {
+ const driver=data.driver,section=$('ownStatistics'),header=ui('div','stats-personal-header'),identity=ui('div','stats-identity');
+ identity.append(ui('p','stats-eyebrow','Deine Saison · '+season),ui('h3','',driver.name),ui('p','stats-team',driver.teamName||'Aktuell ohne Team'));
+ const number=ui('span','stats-number',Number.isInteger(driver.racingNumber)?'#'+driver.racingNumber:'–');number.setAttribute('aria-label',Number.isInteger(driver.racingNumber)?'Startnummer '+driver.racingNumber:'Keine Startnummer gewählt');
+ header.append(identity,number);
+ const results=ui('section','stats-recent'),heading=ui('div','stats-recent-heading');heading.append(ui('h4','','Deine letzten Rennen'),ui('span','stats-note','Neueste zuerst'));results.append(heading);
+ results.append(data.raceResults?.length?driverRaceList(data.raceResults.slice(0,5)):ui('p','stats-empty','Deine Saison beginnt hier. Sobald ein Rennergebnis veröffentlicht ist, erscheinen deine Werte und Ergebnisse automatisch.'));
+ const button=ui('button','outline','Vollständiges Fahrerprofil');button.type='button';button.onclick=()=>openDriverProfile(driver.id);
+ const footer=ui('div','stats-personal-footer');footer.append(ui('p','stats-note','Nur veröffentlichte Ergebnisse · '+season),button);
+ section.replaceChildren(header,statisticsGrid(data.statistics),statisticsDetails(data.statistics),results,footer);
 }
 async function loadDriverStatistics() {
  if(!authenticated)return;
@@ -632,10 +660,15 @@ async function loadDriverStatistics() {
   $('ownStatistics').hidden=!authenticated||!memberDriver;
   $('driverLinkHint').hidden=!authenticated||Boolean(memberDriver);
   if(authenticated&&memberDriver){
-   let own=list.find(row=>row.id===memberDriver.id);
-   if(!own){const detail=await apiRequest('/api/drivers/'+memberDriver.id+'?season='+encodeURIComponent(season));if(sequence!==statisticsSequence)return;own={...detail.driver,statistics:detail.statistics};}
-   const button=ui('button','outline','Mein Fahrerprofil öffnen');button.type='button';button.onclick=()=>openDriverProfile(memberDriver.id);
-   $('ownStatistics').replaceChildren(ui('h3','','Deine Statistiken · '+own.name+(Number.isInteger(own.racingNumber)?' · #'+own.racingNumber:'')),statisticsGrid(own.statistics),button);
+   const driverId=memberDriver.id;
+   try{
+    const detail=await apiRequest('/api/drivers/'+encodeURIComponent(driverId)+'?season='+encodeURIComponent(season));
+    if(sequence!==statisticsSequence||!authenticated||memberDriver?.id!==driverId)return;
+    personalStatistics(detail,season);
+   }catch{
+    if(sequence!==statisticsSequence)return;
+    $('ownStatistics').replaceChildren(ui('p','stats-empty','Deine persönlichen Statistiken konnten nicht geladen werden. Bitte versuche es erneut.'));
+   }
   }
  }catch{if(sequence===statisticsSequence)$('statisticsList').textContent='Die Fahrerstatistiken konnten nicht geladen werden. Bitte erneut versuchen.';}
 }
@@ -764,3 +797,4 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMem
 
 
 setInterval(()=>{if(authenticated&&!document.hidden&&['auktionen','administration'].includes(currentViewRoute()))loadDrivers();},60000);
+
