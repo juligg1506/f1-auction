@@ -258,7 +258,7 @@ if (path === '/api/auctions' && request.method === 'GET') {
         const session = await getSession(request, env);
         if (!session) return safeError('Not authenticated', 401);
         const team = await env.DB.prepare('SELECT id, name, budget FROM teams WHERE owner_discord_id = ?').bind(session.discordId).first();
-        const driver = await env.DB.prepare('SELECT id, name, racing_number AS racingNumber FROM drivers WHERE discord_id = ?').bind(session.discordId).first();
+        const driver = await env.DB.prepare('SELECT id, name, racing_number AS racingNumber FROM drivers WHERE discord_id = ? AND discord_active=1').bind(session.discordId).first();
         return json({ discordId: session.discordId, username: session.username, admin: session.admin, team, driver: driver || null }, 200, cors);
       }
       if (path === '/api/logout' && request.method === 'POST') {
@@ -473,7 +473,7 @@ if (driverMatch && request.method === 'GET') {
   if (!Number.isSafeInteger(id) || id < 1) return safeError('Ungültiger Fahrer', 400);
   const driver = await env.DB.prepare(`SELECT d.id, d.name, d.team_id AS teamId, d.racing_number AS racingNumber,
     t.name AS teamName, d.discord_active AS active FROM drivers d
-    LEFT JOIN teams t ON t.id = d.team_id WHERE d.id = ?`).bind(id).first();
+    LEFT JOIN teams t ON t.id = d.team_id WHERE d.id = ? AND d.discord_active=1`).bind(id).first();
   if (!driver) return safeError('Fahrer nicht gefunden', 404);
   const season=(url.searchParams.get('season')||String(new Date().getUTCFullYear())).trim();
   if(!season||season.length>40)return safeError('Ungültige Saison',400);
@@ -678,64 +678,40 @@ async scheduled(event, env, ctx) {
 };
 
 async function syncDiscordDrivers(env) {
-  const guildId = '1542175377961648128';
-  const driverRoleId = '1569398144998051890';
-
-  if (!env.DISCORD_BOT_TOKEN) {
-    throw new Error('Discord Bot Token fehlt');
-  }
-
-  let after = '0';
-  const drivers = [];
-
-  while (true) {
-    const url = new URL(
-      `https://discord.com/api/v10/guilds/${guildId}/members`
-    );
-    url.searchParams.set('limit', '1000');
-    url.searchParams.set('after', after);
-
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Discord API Fehler: ${response.status}`);
-    }
-
-    const members = await response.json();
-
-    for (const member of members) {
-      if (member.roles.includes(driverRoleId)) {
-        drivers.push({
-          id: member.user.id,
-          name:
-            member.nick ||
-            member.user.global_name ||
-            member.user.username
-        });
+  if(!env.DISCORD_BOT_TOKEN||!env.DISCORD_CLIENT_ID)throw Error('Discord-Konfiguration für Fahrerabgleich fehlt');
+  const guildId=DISCORD_GUILD_ID,driverRoleId='1569398144998051890';
+  let after='0',botSeen=false,complete=false;const drivers=[],seen=new Set();
+  // Never deactivate a driver until the entire, validated member snapshot is available.
+  for(let page=0;page<100;page++){
+    const response=await fetch('https://discord.com/api/v10/guilds/'+guildId+'/members?limit=1000&after='+after,{headers:{Authorization:'Bot '+env.DISCORD_BOT_TOKEN},signal:AbortSignal.timeout(8000)});
+    if(!response.ok)throw Error('Discord-Mitglieder konnten nicht vollständig geladen werden: '+response.status);
+    const members=await response.json();if(!Array.isArray(members)||members.length>1000)throw Error('Ungültige Discord-Mitgliederliste');
+    for(const member of members){
+      if(!/^\d{15,25}$/.test(member?.user?.id||'')||!Array.isArray(member.roles)||seen.has(member.user.id))throw Error('Ungültiger oder doppelter Discord-Mitgliedereintrag');
+      seen.add(member.user.id);if(member.user.id===env.DISCORD_CLIENT_ID)botSeen=true;
+      if(member.roles.includes(driverRoleId)&&!member.user.bot){
+        const name=member.nick||member.user.global_name||member.user.username;if(typeof name!=='string'||!name.trim())throw Error('Discord-Fahrername fehlt');
+        drivers.push({id:member.user.id,name:name.trim()});
       }
     }
-
-    if (members.length < 1000) break;
-
-    after = members[members.length - 1].user.id;
+    if(members.length<1000){complete=true;break;}
+    const next=members.at(-1).user.id;if(BigInt(next)<=BigInt(after))throw Error('Discord-Seitennavigation ohne Fortschritt');after=next;
   }
-
-  for (const driver of drivers) {
-    await env.DB.prepare(`
-      INSERT INTO drivers
-        (name, discord_id, discord_active)
-      VALUES (?, ?, 1)
-      ON CONFLICT(discord_id)
-      DO UPDATE SET
-        name = excluded.name,
-        discord_active = 1
-    `).bind(driver.name, driver.id).run();
-  }
-
+  if(!complete||!botSeen)throw Error('Discord-Snapshot unvollständig; Fahrerstatus unverändert');
+  const snapshot=JSON.stringify(drivers);
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO drivers(name,discord_id,discord_active)
+      SELECT json_extract(value,'$.name'),json_extract(value,'$.id'),1 FROM json_each(?) WHERE 1
+      ON CONFLICT(discord_id) DO UPDATE SET name=excluded.name,discord_active=1`).bind(snapshot),
+    env.DB.prepare(`UPDATE drivers SET discord_active=0 WHERE discord_id IS NOT NULL
+      AND discord_id NOT IN(SELECT json_extract(value,'$.id') FROM json_each(?))`).bind(snapshot),
+    // Cancel only still-active auctions and refund their current leading bid in the same transaction.
+    env.DB.prepare(`UPDATE teams SET budget=budget+COALESCE((SELECT SUM(b.amount) FROM auctions a JOIN bids b ON b.id=a.leading_bid_id JOIN drivers d ON d.id=a.driver_id WHERE a.status='active' AND d.discord_active=0 AND b.team_id=teams.id),0)
+      WHERE id IN(SELECT b.team_id FROM auctions a JOIN bids b ON b.id=a.leading_bid_id JOIN drivers d ON d.id=a.driver_id WHERE a.status='active' AND d.discord_active=0)`),
+    env.DB.prepare("UPDATE auctions SET status='cancelled' WHERE status='active' AND driver_id IN(SELECT id FROM drivers WHERE discord_active=0)"),
+    env.DB.prepare("UPDATE auction_queue SET status='cancelled' WHERE status='pending' AND driver_id IN(SELECT id FROM drivers WHERE discord_active=0)")
+  ]);
+  try{await env.SESSIONS.put('driver_sync_status',JSON.stringify({checkedAt:new Date().toISOString(),activeDrivers:drivers.length}),{expirationTtl:86400});}catch{console.warn('Fahrerabgleich-Status konnte nicht gespeichert werden');}
   return drivers.length;
 }
 async function transferHistory(env, driverId = null) {
@@ -869,7 +845,7 @@ async function driverStatistics(env, season) {
   const results=await env.DB.batch([
     env.DB.prepare(`SELECT d.id, d.name, d.racing_number AS racingNumber, d.team_id AS teamId, t.name AS teamName, d.discord_active AS active
       FROM drivers d LEFT JOIN teams t ON t.id=d.team_id
-      WHERE d.discord_active=1 OR EXISTS (SELECT 1 FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE rr.driver_id=d.id AND r.status='published') ORDER BY d.name`),
+      WHERE d.discord_active=1 ORDER BY d.name`),
     env.DB.prepare(`SELECT rr.driver_id AS driverId,rr.driver_name AS driverName,rr.team_id AS teamId,rr.team_name AS teamName,rr.position,rr.status,rr.points
       FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE r.status='published' AND r.season=? ORDER BY r.race_date,r.id`).bind(season),
     env.DB.prepare("SELECT DISTINCT season FROM races WHERE status='published' ORDER BY season DESC")
@@ -1008,5 +984,6 @@ async function syncDiscordNumbers(env) {
     console.warn('Startnummern-Synchronisierung',message);
   }finally{await env.DB.prepare('UPDATE discord_number_sync SET lease_token=NULL,lease_until=NULL WHERE channel_id=? AND lease_token=?').bind(channelId,lease).run();}
 }
+
 
 

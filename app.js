@@ -754,10 +754,13 @@ setInterval(()=>{if(document.hidden)return;const route=currentViewRoute();if(rou
 let membershipCheckPending=false;
 async function refreshMembership(){
  if(!authenticated||membershipCheckPending)return;membershipCheckPending=true;
- try{await apiRequest('/api/me');}catch{if(token){invalidateSession();notice('Der Zugang konnte nicht bestätigt werden. Bitte erneut mit Discord anmelden.');}}
+ try{const me=await apiRequest('/api/me');memberDriver=me.driver||null;if(!memberDriver){$('ownStatistics').hidden=true;$('driverLinkHint').hidden=false;}}catch{if(token){invalidateSession();notice('Der Zugang konnte nicht bestätigt werden. Bitte erneut mit Discord anmelden.');}}
  finally{membershipCheckPending=false;}
 }
 setInterval(()=>{if(!document.hidden)refreshMembership();},15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMembership();});
 
 
+
+
+setInterval(()=>{if(authenticated&&!document.hidden&&['auktionen','administration'].includes(currentViewRoute()))loadDrivers();},60000);
