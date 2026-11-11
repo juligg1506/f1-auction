@@ -182,7 +182,8 @@ if (discordTeam) {
         // Fragment never goes to GitHub Pages server. Frontend immediately removes it.
         return redirect(FRONTEND + '#session=' + sessionToken, { 'Set-Cookie': cookie('', 0), 'Referrer-Policy': 'no-referrer' });
       }
-      if(path.startsWith('/api/')&&path!=='/api/logout'){
+      const publicRead=request.method==='GET'&&(['/api/teams','/api/league','/api/calendar','/api/standings','/api/races','/api/features'].includes(path)||/^\/api\/races\/\d+$/.test(path));
+      if(path.startsWith('/api/')&&path!=='/api/logout'&&(!publicRead||request.headers.has('Authorization'))){
         const memberSession=await getSession(request,env);
         if(!memberSession)return safeError('Bitte mit Discord als Servermitglied anmelden',401);
         if(memberSession.membershipPolicy!==1||memberSession.guildId!==DISCORD_GUILD_ID||!Number.isFinite(memberSession.expiresAt)||memberSession.expiresAt<=Date.now()){
@@ -1007,4 +1008,5 @@ async function syncDiscordNumbers(env) {
     console.warn('Startnummern-Synchronisierung',message);
   }finally{await env.DB.prepare('UPDATE discord_number_sync SET lease_token=NULL,lease_until=NULL WHERE channel_id=? AND lease_token=?').bind(channelId,lease).run();}
 }
+
 

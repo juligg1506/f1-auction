@@ -11,7 +11,7 @@ globalThis.fetch=async(url,options={})=>{
 };
 const hash=async value=>Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value))).toString('hex');
 async function login(){const state='1'.repeat(64);await env.SESSIONS.put('oauth:'+await hash(state),JSON.stringify({verifier:'test'}));return worker.fetch(new Request('https://test/auth/callback?state='+state+'&code=test',{headers:{Cookie:'f1_oauth='+state}}),env,ctx);}
-for(const path of ['/api/me','/api/teams','/api/league','/api/standings','/api/calendar','/api/races','/api/features','/api/auctions','/api/transfers','/api/drivers','/api/driver-stats','/api/racing-number-rules'])assert.equal((await worker.fetch(new Request('https://test'+path),env,ctx)).status,401,path);
+for(const path of ['/api/me','/api/teams','/api/league','/api/standings','/api/calendar','/api/races','/api/features','/api/auctions','/api/transfers','/api/drivers','/api/driver-stats','/api/racing-number-rules'])assert.equal((await worker.fetch(new Request('https://test'+path),env,ctx)).status,['/api/teams','/api/league','/api/standings','/api/calendar','/api/races','/api/features'].includes(path)?200:401,path);
 absent=true;let r=await login();assert.equal(r.status,302);assert.ok(r.headers.get('location').endsWith('#login_error=not_server_member'));
 absent=false;r=await login();assert.equal(r.status,302);let token=r.headers.get('location').split('#session=')[1];assert.match(token,/^[a-f0-9]{64}$/);
 const key='session:'+await hash(token);let saved=await env.SESSIONS.get(key,'json');assert.equal(saved.guildId,guild);assert.equal(saved.discordTeam,null);assert.equal(saved.membershipPolicy,1);

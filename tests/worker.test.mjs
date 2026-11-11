@@ -160,9 +160,9 @@ console.log('ALL AUCTION AND RACE WORKER TESTS PASSED');
 export {worker, env, ctx, drain};
 
 
-for(const path of ['/api/teams','/api/races','/api/races/1','/api/league','/api/calendar','/api/features','/api/standings'])assert.equal((await request(path,null)).status,401);
+for(const path of ['/api/teams','/api/races','/api/races/1','/api/league','/api/calendar','/api/features','/api/standings'])assert.equal((await request(path,null)).status,200);
 for(const path of ['/api/drivers','/api/auctions','/api/transfers','/api/drivers/1','/api/driver-stats'])assert.equal((await request(path,null)).status,401);
-assert.equal((await request('/api/teams',null)).status,401);
+assert.ok((await request('/api/teams',null)).body.teams.every(t=>!('budget' in t)));
 assert.ok((await request('/api/teams','viewer')).body.teams.every(team=>Number.isFinite(team.budget)));
 assert.equal((await request('/api/standings?season=2026','viewer')).status,200);
 let calendar=(await request('/api/calendar?season=2026','viewer')).body;

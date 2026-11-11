@@ -8,7 +8,7 @@ let token = sessionStorage.getItem('f1_session');
 let loginReturnView = null;
 let authenticated = false;
 let memberDriver = null;
-let guestMode = false;sessionStorage.removeItem(GUEST_MODE_KEY);
+let guestMode = !token&&sessionStorage.getItem(GUEST_MODE_KEY)==='1';
 sessionStorage.removeItem('f1_guest_mode');
 let isAdmin = false, myTeam = null, currentAuction = null, serverOffset = 0;
 let bidPending = false, selectedBid = null, selectedAuctionId = null, auctionLoading = false;
@@ -690,8 +690,9 @@ const viewAliases={dashboard:'start','auction-section':'auktionen','results-sect
 function currentViewRoute(){const hash=location.hash.slice(1)||loginReturnView||'start';return viewRoutes[hash]?hash:viewAliases[hash]||'start';}
 function navigateTo(route){if(!viewRoutes[route])return;if(location.hash==='#'+route)applyView(true);else location.hash=route;}
 function requestDriverLogin(route='fahrerbereich'){sessionStorage.setItem('f1_return_view',route);navigateTo('anmeldung');}
-function updateLoginChoice(){const checking=Boolean(token)&&!authenticated;$('entryScreen').hidden=currentViewRoute()!=='anmeldung';$('loginChoice').hidden=false;$('guest').classList.remove('hidden');$('login').classList.remove('hidden');$('guestSession').hidden=true;$('login').disabled=checking;$('accountActions').hidden=!authenticated;}
+function updateLoginChoice(){const checking=Boolean(token)&&!authenticated;$('entryScreen').hidden=currentViewRoute()!=='anmeldung';$('loginChoice').hidden=false;$('guest').classList.remove('hidden');$('login').classList.remove('hidden');$('guestSession').hidden=true;$('login').disabled=checking;$('guestContinue').disabled=checking;$('accountActions').hidden=!authenticated;}
 
+$('guestContinue').onclick=()=>{guestMode=true;sessionStorage.setItem(GUEST_MODE_KEY,'1');navigateTo('start');loadLeague().then(loadDashboard);};
 $('returnToLogin').onclick=()=>navigateTo('anmeldung');
 $('menuToggle').onclick=()=>{const open=document.querySelector('.sidebar').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};
 const CONSENT_KEY='vtr_privacy_preferences_v1',CONSENT_AGE=180*24*60*60*1000;
@@ -701,14 +702,14 @@ function stopTwitchPlayer(){
  $('twitchPlayer').removeAttribute('src');$('twitchFrame').hidden=true;$('twitchConsentPanel').hidden=false;$('twitchRevoke').hidden=true;
 }
 function loadTwitchPlayer(){
- if(!authenticated||!twitchConsent)return;
+ if((!authenticated&&!guestMode)||!twitchConsent)return;
  const frame=$('twitchPlayer');if(!frame||frame.getAttribute('src'))return;
  const parent=location.hostname;if(!['juligg1506.github.io','racingleague.online','www.racingleague.online'].includes(parent))return;
  const url=new URL('https://player.twitch.tv/');url.search=new URLSearchParams({channel:'vdr_julian',parent,autoplay:'false',muted:'true'}).toString();frame.src=url.href;
  $('twitchConsentPanel').hidden=true;$('twitchFrame').hidden=false;$('twitchRevoke').hidden=false;
 }
 function resetTwitchConsent(){stopTwitchPlayer();}
-function applyConsent(value){consentChoice=value;twitchConsent=Boolean(value?.twitch);$('cookieTwitch').checked=twitchConsent;stopTwitchPlayer();if(twitchConsent&&authenticated&&currentViewRoute()==='livestream')loadTwitchPlayer();}
+function applyConsent(value){consentChoice=value;twitchConsent=Boolean(value?.twitch);$('cookieTwitch').checked=twitchConsent;stopTwitchPlayer();if(twitchConsent&&(authenticated||guestMode)&&currentViewRoute()==='livestream')loadTwitchPlayer();}
 function saveConsent(twitch){
  const value={version:1,twitch,updatedAt:Date.now()};let saved=true;
  try{localStorage.setItem(CONSENT_KEY,JSON.stringify(value));}catch{saved=false;}
@@ -726,14 +727,14 @@ window.addEventListener('storage',event=>{if(event.key===CONSENT_KEY||event.key=
 consentChoice=readConsent();twitchConsent=Boolean(consentChoice?.twitch);$('cookieTwitch').checked=twitchConsent;$('cookieBanner').hidden=Boolean(consentChoice);
 setInterval(()=>{if(consentChoice&&Date.now()-consentChoice.updatedAt>=CONSENT_AGE){try{localStorage.removeItem(CONSENT_KEY);}catch{}applyConsent(null);$('cookieBanner').hidden=false;}},60000);
 function applyView(moveFocus=false){
- let route=currentViewRoute();
- if(!authenticated){if(route!=='anmeldung')sessionStorage.setItem('f1_return_view',route);route='anmeldung';}
+ let route=currentViewRoute();const entered=authenticated||guestMode;
+ if(!entered||(viewRoutes[route].protected&&!authenticated)){if(route!=='anmeldung')sessionStorage.setItem('f1_return_view',route);route='anmeldung';}
  else if(route==='anmeldung'){const target=loginReturnView||sessionStorage.getItem('f1_return_view');route=viewRoutes[target]&&target!=='anmeldung'?target:'start';sessionStorage.removeItem('f1_return_view');}
  if(route==='administration'&&!isAdmin)route='start';
  if(location.hash!=='#'+route)history.replaceState(null,'',location.pathname+location.search+'#'+route);
- if(authenticated)loginReturnView=null;const view=viewRoutes[route];document.body.classList.toggle('landing-mode',!authenticated);$('app').classList.toggle('hidden',!authenticated);
- for(const panel of document.querySelectorAll('[data-page-view]'))panel.hidden=!authenticated||panel.dataset.pageView!==view.section||(panel.hasAttribute('data-auth-only')&&!authenticated);
- for(const link of document.querySelectorAll('[data-view-link]')){const key=link.dataset.viewLink;link.hidden=!authenticated||(['fahrerstatistiken','auktionen'].includes(key)&&!authenticated)||(key==='administration'&&!isAdmin);const active=key===route;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
+ if(authenticated)loginReturnView=null;const view=viewRoutes[route];document.body.classList.toggle('landing-mode',!entered||route==='anmeldung');$('app').classList.toggle('hidden',!entered);
+ for(const panel of document.querySelectorAll('[data-page-view]'))panel.hidden=!entered||panel.dataset.pageView!==view.section||(panel.hasAttribute('data-auth-only')&&!authenticated);
+ for(const link of document.querySelectorAll('[data-view-link]')){const key=link.dataset.viewLink;link.hidden=!entered||(['fahrerstatistiken','auktionen'].includes(key)&&!authenticated)||(key==='administration'&&!isAdmin);const active=key===route;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
  document.querySelector('.top-heading').textContent=view.label;document.title=view.label+' | Virtual Tier Racing';
  document.querySelector('.sidebar').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false');updateLoginChoice();
  if(route==='fahrerbereich'&&authenticated)loadNumberRules();if(route==='livestream'){if(twitchConsent)loadTwitchPlayer();}else resetTwitchConsent();if(route==='teams')loadTeams();if(route==='rennergebnisse')loadRaceArea();if(route==='fahrerstatistiken')loadDriverStatistics();if(route==='auktionen'&&authenticated)loadAuction();if(route==='administration')loadLeagueAdmin();
@@ -743,7 +744,7 @@ function applyView(moveFocus=false){
 for(const link of document.querySelectorAll('[data-view-link]'))link.addEventListener('click',event=>{if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;event.preventDefault();navigateTo(link.dataset.viewLink);});
 window.addEventListener('hashchange',()=>applyView(true));
 applyView();
-(async()=>{await boot();if(authenticated){await loadLeague();await loadDashboard();}})();
+(async()=>{await boot();if(authenticated||guestMode){await loadLeague();await loadDashboard();}})();
 
 
 setInterval(()=>{if(document.hidden)return;const route=currentViewRoute();if(route==='teams')loadTeams();if(authenticated&&route==='fahrerstatistiken')loadDriverStatistics();if(isAdmin&&route==='administration')loadNumberSyncStatus();},60000);
@@ -758,4 +759,5 @@ async function refreshMembership(){
 }
 setInterval(()=>{if(!document.hidden)refreshMembership();},15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMembership();});
+
 

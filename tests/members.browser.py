@@ -20,7 +20,7 @@ async def main():
    c,page,errors,requests=await setup(width,hash='#teams')
    for route in ['start','kalender','teams','rennergebnisse','liga','livestream','fahrerbereich','fahrerstatistiken','auktionen','administration']:
     await page.evaluate('(route)=>location.hash=route',route);await expect(page.locator('#entryScreen')).to_be_visible();await expect(page.locator('.sidebar')).to_be_hidden();await expect(page.locator('.hero')).to_be_hidden();assert page.url.endswith('#anmeldung')
-   assert not requests,requests;await expect(page.locator('#guestContinue')).to_have_count(0);assert await page.locator('[data-page-view]:visible').count()==0
+   assert not requests,requests;await expect(page.locator('#guestContinue')).to_have_count(1);assert await page.locator('[data-page-view]:visible').count()==0
    assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth');assert not errors,errors
    if width==390:await page.screenshot(path=str(root/'tests/login-members-390.png'),full_page=True)
    await page.unroute_all(behavior='ignoreErrors');await c.close()
