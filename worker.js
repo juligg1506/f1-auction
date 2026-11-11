@@ -457,7 +457,7 @@ try {
 }
 
 if (path === '/api/features' && request.method === 'GET') {
-  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, guestReadOnly: true, driverStatistics: true, racingNumbers: true, leaguePortal: true, protectedDriverArea: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
+  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, guestReadOnly: true, driverStatistics: true, driverProgression: true, racingNumbers: true, leaguePortal: true, protectedDriverArea: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
 }
 if (path === '/api/transfers' && request.method === 'GET') {
   return json({ transfers: await transferHistory(env) }, 200, cors);
@@ -479,7 +479,7 @@ if (driverMatch && request.method === 'GET') {
   if(!season||season.length>40)return safeError('Ungültige Saison',400);
   const all=await driverStatistics(env,season);
   const statistics=all.drivers.find(row=>row.id===id)?.statistics||summarizeDriver([]);
-  return json({ driver, season, seasons:all.seasons, statistics, raceResults:await driverRaceHistory(env,id,season), transfers:await transferHistory(env,id) },200,cors);
+  return json({ driver, season, seasons:all.seasons, statistics, progression:await driverProgression(env,id,season), raceResults:await driverRaceHistory(env,id,season), transfers:await transferHistory(env,id) },200,cors);
 }
 if (path.startsWith('/api/admin/queue')) {
   const session = await getSession(request, env);
@@ -825,18 +825,35 @@ async function readRace(env, id, includeDraft) {
   ]);
   return result[0].results[0] ? { race: result[0].results[0], results: result[1].results, pointsSystem: RACE_POINTS } : null;
 }
-function buildStandings(rows, kind) {
-  const map = new Map();
-  for (const row of rows) {
-    const id = row[kind + 'Id']; if (id === null) continue;
-    let item = map.get(id);
-    if (!item) { item = { id, name: row[kind + 'Name'], points: 0, wins: 0, countback: Array(60).fill(0) }; map.set(id, item); }
-    item.name = row[kind + 'Name']; item.points += row.points;
-    if (row.status === 'classified' && row.position !== null) { item.countback[row.position - 1]++; if (row.position === 1) item.wins++; }
-  }
-  const compare = (a,b) => { if (a.points !== b.points) return b.points - a.points; for (let i=0;i<60;i++) if (a.countback[i] !== b.countback[i]) return b.countback[i] - a.countback[i]; return 0; };
-  const list = [...map.values()].sort((a,b) => compare(a,b) || a.name.localeCompare(b.name, 'de') || a.id - b.id);
-  return list.map((item,i) => { item.rank = i && compare(item,list[i-1]) === 0 ? list[i-1].rank : i+1; return { id: item.id, name: item.name, points: item.points, wins: item.wins, rank: item.rank }; });
+function addStandingRow(map,row,kind) {
+ const id=row[kind+'Id'];if(id===null)return;
+ let item=map.get(id);
+ if(!item){item={id,name:row[kind+'Name'],points:0,wins:0,countback:Array(60).fill(0)};map.set(id,item);}
+ item.name=row[kind+'Name'];item.points+=row.points;
+ if(row.status==='classified'&&row.position!==null){item.countback[row.position-1]++;if(row.position===1)item.wins++;}
+}
+function rankStandingMap(map) {
+ const compare=(a,b)=>{if(a.points!==b.points)return b.points-a.points;for(let i=0;i<60;i++)if(a.countback[i]!==b.countback[i])return b.countback[i]-a.countback[i];return 0;};
+ const list=[...map.values()].sort((a,b)=>compare(a,b)||a.name.localeCompare(b.name,'de')||a.id-b.id);
+ return list.map((item,i)=>{item.rank=i&&compare(item,list[i-1])===0?list[i-1].rank:i+1;return {id:item.id,name:item.name,points:item.points,wins:item.wins,rank:item.rank};});
+}
+function buildStandings(rows,kind) {
+ const map=new Map();for(const row of rows)addStandingRow(map,row,kind);return rankStandingMap(map);
+}
+async function driverProgression(env,id,season) {
+ const data=await env.DB.batch([
+  env.DB.prepare("SELECT id,name,race_date AS raceDate FROM races WHERE status='published' AND season=? ORDER BY race_date,id").bind(season),
+  env.DB.prepare(`SELECT rr.race_id AS raceId,rr.driver_id AS driverId,rr.driver_name AS driverName,rr.position,rr.status,rr.points
+   FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE r.status='published' AND r.season=? ORDER BY r.race_date,r.id,rr.driver_id`).bind(season)
+ ]);
+ const grouped=new Map();for(const row of data[1].results){if(!grouped.has(row.raceId))grouped.set(row.raceId,[]);grouped.get(row.raceId).push(row);}
+ const standings=new Map();
+ return data[0].results.map(race=>{
+  const rows=grouped.get(race.id)||[];for(const row of rows)addStandingRow(standings,row,'driver');
+  const standing=rankStandingMap(standings).find(row=>row.id===id),entry=rows.find(row=>row.driverId===id);
+  return {raceId:race.id,raceName:race.name,raceDate:race.raceDate,points:standing?.points??0,rank:standing?.rank??null,
+   participated:Boolean(entry),racePoints:entry?.points??0,position:entry?.position??null,status:entry?.status??null};
+ });
 }
 
 
@@ -984,6 +1001,7 @@ async function syncDiscordNumbers(env) {
     console.warn('Startnummern-Synchronisierung',message);
   }finally{await env.DB.prepare('UPDATE discord_number_sync SET lease_token=NULL,lease_until=NULL WHERE channel_id=? AND lease_token=?').bind(channelId,lease).run();}
 }
+
 
 
 

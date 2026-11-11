@@ -1,0 +1,24 @@
+import {env,worker,ctx} from './worker.test.mjs';
+import assert from 'node:assert/strict';
+const run=(sql,...p)=>env.DB.prepare(sql).bind(...p).run();
+const season='WM-Verlauf-Test';
+await run("INSERT INTO drivers(id,name,discord_active) VALUES(101,'Test A',1),(102,'Test B',1),(103,'Test C',0)");
+for(let i=1;i<=4;i++)await run("INSERT INTO races(id,season,name,race_date,status,created_by,created_at,updated_at) VALUES(?, ?, ?, ?, ?, 'admin','now','now')",100+i,season,'Race '+i,'2026-01-0'+i,i===4?'draft':'published');
+const add=async(r,id,pos,status,points)=>run('INSERT INTO race_results(race_id,driver_id,driver_name,position,status,points) VALUES(?,?,?,?,?,?)',r,id,'Test '+id,pos,status,points);
+await add(101,102,1,'classified',25);await add(101,103,2,'classified',18);
+await add(102,101,1,'classified',25);await add(102,102,null,'dnf',0);await add(102,103,2,'classified',18);
+await add(103,101,null,'dns',0);await add(103,103,1,'classified',25);
+await add(104,101,1,'classified',25);
+const get=async(path,auth=true)=>{const r=await worker.fetch(new Request('https://test'+path,{headers:auth?{Authorization:'Bearer '+'a'.repeat(64)}:{}}),env,ctx);return {status:r.status,data:await r.json()};};
+const path='/api/drivers/101?season='+encodeURIComponent(season);const a=(await get(path)).data;
+assert.deepEqual(a.progression.map(p=>p.raceId),[101,102,103]);
+assert.deepEqual(a.progression.map(p=>p.points),[0,25,25]);assert.deepEqual(a.progression.map(p=>p.rank),[null,2,2]);
+assert.deepEqual(a.progression.map(p=>p.participated),[false,true,true]);assert.equal(a.progression[2].status,'dns');
+const b=(await get('/api/drivers/102?season='+encodeURIComponent(season))).data;assert.deepEqual(b.progression.map(p=>p.rank),[1,2,2]);assert.equal(b.progression[2].participated,false);
+const standings=(await get('/api/standings?season='+encodeURIComponent(season))).data.drivers;
+for(const d of [a,b]){const final=d.progression.at(-1),rank=standings.find(s=>s.id===d.driver.id);assert.equal(final.points,rank.points);assert.equal(final.rank,rank.rank);}
+assert.deepEqual((await get('/api/drivers/101?season=Unknown')).data.progression,[]);
+assert.equal((await get(path,false)).status,401);assert.equal((await get('/api/drivers/103?season='+season)).status,404);
+await run("UPDATE races SET status='draft' WHERE id=102");const corrected=(await get(path)).data;
+assert.deepEqual(corrected.progression.map(p=>p.raceId),[101,103]);assert.deepEqual(corrected.progression.map(p=>p.points),[0,0]);
+console.log('PASS progression: first entry, missed races, DNF/DNS, tied/countback ranks, inactive historical competitors, draft/season privacy, final standings consistency and unpublication');

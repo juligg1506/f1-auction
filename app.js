@@ -561,6 +561,14 @@ $('raceDialog').addEventListener('cancel',event=>{if(raceSaving)event.preventDef
 
 let dashboardSequence=0, dashboardAutoPicked=false, dashboardUserSelected=false;
 function berlinToday() { const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(type=>parts.find(part=>part.type===type).value).join('-'); }
+function showNextRace(next,message) {
+ $('heroRaceName').textContent=next?.name||'Weitere Termine folgen.';
+ $('heroRaceDate').textContent=next?raceDate(next.raceDate):(message||'Aktuell ist kein weiteres Rennen angekündigt.');
+ const countdown=$('heroRaceCountdown');countdown.hidden=!next;
+ if(next){const days=Math.round((Date.parse(next.raceDate+'T00:00:00Z')-Date.parse(berlinToday()+'T00:00:00Z'))/86400000);
+  countdown.textContent=days===0?'Heute ist Renntag':days===1?'Noch 1 Tag':'Noch '+days+' Tage';
+ }
+}
 async function loadDashboard() {
   const sequence=++dashboardSequence,season=$('dashboardSeason').value.trim();if(!season||season.length>40)return;
   const [scores,dates]=await Promise.allSettled([apiRequest('/api/standings?season='+encodeURIComponent(season)),apiRequest('/api/calendar?season='+encodeURIComponent(season))]);
@@ -578,11 +586,11 @@ async function loadDashboard() {
     }
   }else{for(const id of['dashboardDrivers','dashboardTeams'])$(id).replaceChildren(ui('p','muted','Die Wertung konnte nicht geladen werden. Bitte erneut versuchen.'));}
   const container=$('dashboardCalendar');$('dashboardNextRace').hidden=true;
-  if(dates.status==='rejected'){container.replaceChildren(ui('p','muted','Der Rennkalender konnte nicht geladen werden. Bitte erneut versuchen.'));return;}
+  if(dates.status==='rejected'){showNextRace(null,'Der Rennkalender konnte nicht geladen werden.');container.replaceChildren(ui('p','muted','Der Rennkalender konnte nicht geladen werden. Bitte erneut versuchen.'));return;}
   const calendar=dates.value.calendar||[],today=berlinToday();container.replaceChildren();
-  if(!calendar.length){$('heroRaceName').textContent='Renntermine folgen.';$('heroRaceDate').textContent='Der Kalender wird von der Ligaleitung veröffentlicht.';container.append(ui('p','muted','Noch keine Renntermine für diese Saison veröffentlicht.'));return;}
-  const next=calendar.find(race=>race.status==='planned'&&race.raceDate>=today);
-  $('heroRaceName').textContent=next?.name||'Weitere Termine folgen.';$('heroRaceDate').textContent=next?raceDate(next.raceDate):'Aktuell ist kein weiteres Rennen angekündigt.';
+  if(!calendar.length){showNextRace(null,'Der Kalender wird von der Ligaleitung veröffentlicht.');container.append(ui('p','muted','Noch keine Renntermine für diese Saison veröffentlicht.'));return;}
+  const next=[...calendar].sort((a,b)=>a.raceDate.localeCompare(b.raceDate)||a.id-b.id).find(race=>race.status==='planned'&&race.raceDate>=today);
+  showNextRace(next);
   if(next){$('dashboardNextRace').textContent='Nächstes Rennen: '+next.name+' · '+raceDate(next.raceDate);$('dashboardNextRace').hidden=false;}
   const list=ui('ol','calendar-list');
   for(const race of calendar){
@@ -597,10 +605,97 @@ async function loadDashboard() {
 }
 $('dashboardSeason').value=berlinToday().slice(0,4);
 $('dashboardFilter').addEventListener('submit',event=>{event.preventDefault();dashboardUserSelected=true;loadDashboard();});
-setInterval(()=>{if(!document.hidden&&authenticated&&['start','kalender'].includes(currentViewRoute()))loadDashboard();},60000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&authenticated&&['start','kalender'].includes(currentViewRoute()))loadDashboard();});
+setInterval(()=>{if(!document.hidden&&(authenticated||guestMode)&&['start','kalender'].includes(currentViewRoute()))loadDashboard();},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(authenticated||guestMode)&&['start','kalender'].includes(currentViewRoute()))loadDashboard();});
 
 let statisticsSequence=0,statisticsAutoPicked=false,statisticsUserSelected=false;
+let comparisonSequence=0,comparisonSeason=null;
+function svgElement(tag,attributes={},text=null){
+ const node=document.createElementNS('http://www.w3.org/2000/svg',tag);
+ for(const [name,value]of Object.entries(attributes))node.setAttribute(name,String(value));
+ if(text!==null)node.textContent=String(text);return node;
+}
+function championshipChart(series) {
+ const raceMap=new Map();for(const entry of series)for(const row of entry.rows)raceMap.set(row.raceId,row);
+ const timeline=[...raceMap.values()].sort((a,b)=>a.raceDate.localeCompare(b.raceDate)||a.raceId-b.raceId);
+ series=series.map(entry=>{const byId=new Map(entry.rows.map(row=>[row.raceId,row]));return {...entry,rows:timeline.map(race=>byId.get(race.raceId)||{...race,points:null,rank:null})};});
+ const section=ui('section','wm-chart'),header=ui('div','wm-chart-header');header.append(ui('h4','','WM-Verlauf'));
+ const controls=ui('div','wm-chart-controls');controls.setAttribute('role','group');controls.setAttribute('aria-label','Kennzahl für den WM-Verlauf');
+ const plot=ui('div','wm-chart-plot'),readout=ui('p','wm-chart-readout','Punkt im Diagramm berühren oder mit Tab auswählen.'),legend=ui('div','wm-chart-legend');
+ series.forEach((entry,i)=>{const label=ui('span','wm-series-'+i,entry.name);legend.append(label);});
+ const pointsButton=ui('button','outline','Punkte'),rankButton=ui('button','outline','WM-Platz');pointsButton.type=rankButton.type='button';controls.append(pointsButton,rankButton);header.append(controls);section.append(header,legend,plot,readout);
+ const races=series[0]?.rows||[];
+ if(!races.length){section.replaceChildren(ui('h4','','WM-Verlauf'),ui('p','stats-empty','Der WM-Verlauf erscheint nach dem ersten veröffentlichten Rennen dieser Saison.'));return section;}
+ const tableDetails=ui('details','wm-chart-data');tableDetails.append(ui('summary','','Werte als Tabelle anzeigen'));
+ tableDetails.append(resultTable(['Rennen',...series.flatMap(s=>[s.name+' · Punkte',s.name+' · WM-Platz'])],races.map((race,i)=>[race.raceName,...series.flatMap(s=>[s.rows[i]?.points??'–',s.rows[i]?.rank==null?'–':'P'+s.rows[i].rank])]),'WM-Verlauf nach veröffentlichten Rennen'));
+ section.append(ui('p','stats-note','Stand nach jedem veröffentlichten Rennen, inklusive Gleichständen und Platzierungsvergleich. Ohne Rennteilnahme bleiben die Punkte bestehen; der WM-Platz kann sich ändern.'),tableDetails);
+ function draw(metric){
+  pointsButton.setAttribute('aria-pressed',String(metric==='points'));rankButton.setAttribute('aria-pressed',String(metric==='rank'));
+  const width=760,height=240,left=42,right=18,top=20,bottom=37,values=series.flatMap(s=>s.rows.map(row=>row[metric])).filter(v=>v!==null&&Number.isFinite(v));
+  if(!values.length){plot.replaceChildren(ui('p','stats-empty','Für diese Fahrer gibt es noch keinen WM-Platz in dieser Saison.'));readout.textContent='Ein WM-Platz entsteht mit dem ersten veröffentlichten Ergebnis.';return;}
+  const max=metric==='rank'?Math.max(2,...values):Math.max(1,...values),min=metric==='rank'?1:0;
+  const x=i=>left+(races.length===1?(width-left-right)/2:i*(width-left-right)/(races.length-1));
+  const y=value=>metric==='rank'?top+(value-min)/(max-min)*(height-top-bottom):height-bottom-(value-min)/(max-min)*(height-top-bottom);
+  const svg=svgElement('svg',{viewBox:`0 0 ${width} ${height}`,role:'group','aria-label':metric==='rank'?'WM-Platz nach Rennen; Platz 1 ist oben':'Gesamtpunkte nach Rennen'});
+  const ticks=[...new Set(Array.from({length:5},(_,i)=>Math.round(min+(max-min)*i/4)))];
+  for(const tick of ticks){svg.append(svgElement('line',{x1:left,x2:width-right,y1:y(tick),y2:y(tick),class:'wm-gridline'}),svgElement('text',{x:left-10,y:y(tick)+4,'text-anchor':'end',class:'wm-axis'},metric==='rank'?'P'+tick:tick));}
+  const step=Math.max(1,Math.ceil(races.length/7));
+  races.forEach((race,i)=>{if(i%step===0||i===races.length-1)svg.append(svgElement('text',{x:x(i),y:height-12,'text-anchor':'middle',class:'wm-axis'},'R'+(i+1)));});
+  series.forEach((entry,seriesIndex)=>{
+   let path='';let connected=false;
+   entry.rows.forEach((row,i)=>{const value=row[metric];if(value===null||!Number.isFinite(value)){connected=false;return;}path+=(connected?' L':' M')+x(i)+' '+y(value);connected=true;});
+   svg.append(svgElement('path',{d:path,class:'wm-line wm-series-'+seriesIndex,fill:'none'}));
+   entry.rows.forEach((row,i)=>{const value=row[metric];if(value===null||!Number.isFinite(value))return;
+    const text=entry.name+' · '+row.raceName+' · '+raceDate(row.raceDate)+' · '+(metric==='rank'?'WM-Platz '+value:value+' Punkte');
+    const dot=svgElement('circle',{cx:x(i),cy:y(value),r:5,class:'wm-dot wm-series-'+seriesIndex,tabindex:0,role:'img','aria-label':text});dot.append(svgElement('title',{},text));
+    for(const event of ['mouseenter','focus','touchstart'])dot.addEventListener(event,()=>{readout.textContent=text;});svg.append(dot);
+   });
+  });
+  plot.replaceChildren(svg);readout.textContent='Punkt im Diagramm berühren oder mit Tab auswählen.';
+ }
+ pointsButton.onclick=()=>draw('points');rankButton.onclick=()=>draw('rank');draw('points');return section;
+}
+function prepareDriverComparison(list){
+ const choices=[...list].sort((a,b)=>a.name.localeCompare(b.name,'de')),first=$('comparisonFirst'),second=$('comparisonSecond'),oldFirst=first.value,oldSecond=second.value;
+ for(const select of [first,second])select.replaceChildren(new Option('Fahrer auswählen',''),...choices.map(d=>new Option(d.name+(Number.isInteger(d.racingNumber)?' · #'+d.racingNumber:''),String(d.id))));
+ first.value=choices.some(d=>String(d.id)===oldFirst)?oldFirst:String(choices.find(d=>d.id===memberDriver?.id)?.id||choices[0]?.id||'');
+ second.value=choices.some(d=>String(d.id)===oldSecond)&&oldSecond!==first.value?oldSecond:String(choices.find(d=>String(d.id)!==first.value)?.id||'');
+ if(oldFirst!==first.value||oldSecond!==second.value){++comparisonSequence;$('comparisonResult').replaceChildren();}
+ $('comparisonForm').querySelector('button').disabled=choices.length<2;
+ $('comparisonNotice').textContent=choices.length<2?'Für einen Vergleich werden mindestens zwei aktive Fahrer benötigt.':'';
+}
+function comparisonView(first,second){
+ const fragment=document.createDocumentFragment(),names=[first.driver.name,second.driver.name],table=ui('div','comparison-metrics');
+ const rows=[['Punkte','points',false],['Rennstarts','starts',false],['Siege','wins',false],['Podien','podiums',false],['WM-Platz','rank',true],['Bestes Ergebnis','bestFinish',true],['Ø gewertete Platzierung','averageFinish',true],['Ausfälle','retirements',true]];
+ const heading=ui('div','comparison-metric comparison-names');heading.append(ui('span','','Saisonwerte'),...names.map((name,i)=>ui('strong','wm-series-'+i,name)));table.append(heading);
+ for(const [label,key,lower]of rows){const row=ui('div','comparison-metric'),a=first.statistics[key],b=second.statistics[key];row.append(ui('span','',label));
+  [a,b].forEach((value,i)=>{const best=a!==null&&b!==null&&a!==b&&(lower?value===Math.min(a,b):value===Math.max(a,b));row.append(ui('strong',best?'comparison-better':'',value===null?'–':format(value)));});table.append(row);
+ }
+ fragment.append(table,ui('p','stats-note','Hervorgehobene Werte zeigen den besseren Saisonwert; unterschiedliche Anzahlen an Rennstarts sind möglich.'));
+ fragment.append(championshipChart([{name:names[0],rows:first.progression||[]},{name:names[1],rows:second.progression||[]}]));
+ const secondRaces=new Map((second.progression||[]).map(row=>[row.raceId,row]));
+ const common=(first.progression||[]).filter(row=>row.participated&&secondRaces.get(row.raceId)?.participated);
+ const classified=common.filter(row=>row.status==='classified'&&secondRaces.get(row.raceId).status==='classified');
+ const wins=classified.filter(row=>row.position<secondRaces.get(row.raceId).position).length,losses=classified.filter(row=>row.position>secondRaces.get(row.raceId).position).length;
+ const duel=ui('section','comparison-duel');duel.append(ui('h4','','Direktduell'),ui('p','',names[0]+' '+wins+' : '+losses+' '+names[1]),ui('p','stats-note',classified.length+' gemeinsam gewertete Rennen · Nur Rennen, in denen beide klassifiziert wurden. Ausfälle, Nichtstarts und Disqualifikationen zählen nicht als Duellsieg.'));
+ if(common.length)duel.append(resultTable(['Gemeinsames Rennen',names[0],names[1]],common.map(row=>[row.raceName,...[row,secondRaces.get(row.raceId)].map(r=>r.status==='classified'?'P'+r.position:raceStatusLabel[r.status]||'–')]),'Ergebnisse bei gemeinsamen Rennteilnahmen'));
+ else duel.append(ui('p','stats-empty','Noch keine gemeinsamen Rennergebnisse in dieser Saison.'));
+ fragment.append(duel);return fragment;
+}
+async function loadDriverComparison(){
+ if(!authenticated)return;
+ const a=$('comparisonFirst').value,b=$('comparisonSecond').value,sequence=++comparisonSequence,season=$('statisticsSeason').value.trim();
+ if(!a||!b||a===b){$('comparisonNotice').textContent='Bitte wähle zwei unterschiedliche Fahrer.';return;}
+ $('comparisonResult').replaceChildren();$('comparisonNotice').textContent='Vergleich wird geladen …';
+ try{
+  const data=await Promise.all([a,b].map(id=>apiRequest('/api/drivers/'+encodeURIComponent(id)+'?season='+encodeURIComponent(season))));
+  if(sequence!==comparisonSequence||!authenticated)return;
+  $('comparisonResult').replaceChildren(comparisonView(...data));$('comparisonNotice').textContent='Vergleich für Saison '+season;
+ }catch{if(sequence===comparisonSequence)$('comparisonNotice').textContent='Der Vergleich konnte nicht geladen werden. Bitte erneut versuchen.';}
+}
+$('comparisonForm').addEventListener('submit',event=>{event.preventDefault();loadDriverComparison();});
+for(const id of ['comparisonFirst','comparisonSecond'])$(id).addEventListener('change',()=>{++comparisonSequence;$('comparisonResult').replaceChildren();$('comparisonNotice').textContent='Auswahl geändert. Klicke auf Vergleichen.';});
+
 function statisticCells(values,className) {
  const grid=ui('dl',className);
  for(const [label,value]of values){const cell=ui('div','driver-stat');cell.append(ui('dt','',label),ui('dd','',String(value)));grid.append(cell);}
@@ -629,12 +724,13 @@ function driverRaceList(rows) {
 }
 function driverStatisticsSection(data) {
  const section=ui('section','driver-statistics');section.append(ui('h3','','Saison '+data.season),statisticsGrid(data.statistics),statisticsDetails(data.statistics));
- section.append(ui('h3','','Rennergebnisse'));
+ section.append(championshipChart([{name:data.driver.name,rows:data.progression||[]}]),ui('h3','','Rennergebnisse'));
  section.append(data.raceResults?.length?driverRaceList(data.raceResults):ui('p','stats-empty','Noch keine veröffentlichten Rennergebnisse in dieser Saison.'));
  if(data.raceResults?.length===50)section.append(ui('p','stats-note','Die letzten 50 Ergebnisse werden angezeigt; die Statistik zählt alle veröffentlichten Rennen dieser Saison.'));
  return section;
 }
 function personalStatistics(data,season) {
+ const keepRank=$('ownStatistics').querySelector('.wm-chart-controls button:last-child')?.getAttribute('aria-pressed')==='true';
  const driver=data.driver,section=$('ownStatistics'),header=ui('div','stats-personal-header'),identity=ui('div','stats-identity');
  identity.append(ui('p','stats-eyebrow','Deine Saison · '+season),ui('h3','',driver.name),ui('p','stats-team',driver.teamName||'Aktuell ohne Team'));
  const number=ui('span','stats-number',Number.isInteger(driver.racingNumber)?'#'+driver.racingNumber:'–');number.setAttribute('aria-label',Number.isInteger(driver.racingNumber)?'Startnummer '+driver.racingNumber:'Keine Startnummer gewählt');
@@ -643,11 +739,13 @@ function personalStatistics(data,season) {
  results.append(data.raceResults?.length?driverRaceList(data.raceResults.slice(0,5)):ui('p','stats-empty','Deine Saison beginnt hier. Sobald ein Rennergebnis veröffentlicht ist, erscheinen deine Werte und Ergebnisse automatisch.'));
  const button=ui('button','outline','Vollständiges Fahrerprofil');button.type='button';button.onclick=()=>openDriverProfile(driver.id);
  const footer=ui('div','stats-personal-footer');footer.append(ui('p','stats-note','Nur veröffentlichte Ergebnisse · '+season),button);
- section.replaceChildren(header,statisticsGrid(data.statistics),statisticsDetails(data.statistics),results,footer);
+ section.replaceChildren(header,statisticsGrid(data.statistics),statisticsDetails(data.statistics),championshipChart([{name:driver.name,rows:data.progression||[]}]),results,footer);
+ if(keepRank)section.querySelector('.wm-chart-controls button:last-child')?.click();
 }
 async function loadDriverStatistics() {
  if(!authenticated)return;
  const sequence=++statisticsSequence,season=$('statisticsSeason').value.trim();if(!season||season.length>40)return;
+ if(comparisonSeason!==season){++comparisonSequence;comparisonSeason=season;$('comparisonResult').replaceChildren();$('comparisonNotice').textContent='';}
  try{
   const data=await apiRequest('/api/driver-stats?season='+encodeURIComponent(season));if(sequence!==statisticsSequence)return;
   extensionReady=true;const list=data.drivers||[],seasons=data.seasons||[];
@@ -655,6 +753,9 @@ async function loadDriverStatistics() {
   if(!statisticsAutoPicked&&!statisticsUserSelected&&seasons.length&&!seasons.includes(season)&&list.every(row=>!row.statistics.entries)){statisticsAutoPicked=true;$('statisticsSeason').value=seasons.find(s=>s.startsWith(berlinToday().slice(0,4)))||seasons[0];return loadDriverStatistics();}
   $('statisticsSeasons').replaceChildren(...seasons.map(s=>new Option(s,s)));
   for(const driver of list)knownDrivers.set(Number(driver.id),driver);
+  prepareDriverComparison(list);
+  if($('comparisonResult').hasChildNodes())await loadDriverComparison();
+  if(sequence!==statisticsSequence)return;
   const ordered=[...list].sort((a,b)=>(a.statistics.rank??Infinity)-(b.statistics.rank??Infinity)||a.name.localeCompare(b.name,'de'));
   $('statisticsList').replaceChildren(ordered.length?resultTable(['Fahrer','Aktuelles Team','Starts','Punkte','Siege','Podien','Beste Platzierung'],ordered.map(row=>[profileLink(row),row.teamName||'Ohne Team',row.statistics.starts,row.statistics.points,row.statistics.wins,row.statistics.podiums,row.statistics.bestFinish??'–']),'Fahrerstatistiken; auf kleinen Displays seitlich scrollen'):ui('p','muted','Noch keine Fahrer erfasst.'));
   $('ownStatistics').hidden=!authenticated||!memberDriver;
@@ -797,4 +898,5 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMem
 
 
 setInterval(()=>{if(authenticated&&!document.hidden&&['auktionen','administration'].includes(currentViewRoute()))loadDrivers();},60000);
+
 
