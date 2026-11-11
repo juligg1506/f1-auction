@@ -319,6 +319,7 @@ const ui = (tag, cls, text) => { const e = document.createElement(tag); e.classN
 const dateText = value => { const date = new Date(value); return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Berlin' }).format(date) : '–'; };
 function profileLink(driver) {
   const button = ui('button', 'driver-link', driver.name);
+  if(Number.isInteger(driver.racingNumber)){const badge=ui('span','racing-number','#'+driver.racingNumber);badge.setAttribute('aria-label','Startnummer '+driver.racingNumber);button.prepend(badge);}
   button.type = 'button'; button.addEventListener('click', () => openDriverProfile(driver.id));
   return button;
 }
@@ -364,9 +365,10 @@ async function openDriverProfile(id) {
   try {
     const data = await apiRequest('/api/drivers/' + encodeURIComponent(id)+'?season='+encodeURIComponent($('statisticsSeason').value.trim()));
     if (request !== profileRequest) return;
-    $('driverDialogTitle').textContent = data.driver.name;
+    $('driverDialogTitle').textContent = data.driver.name+(Number.isInteger(data.driver.racingNumber)?' · #'+data.driver.racingNumber:'');
     $('driverProfileBody').replaceChildren(ui('p', 'profile-team', data.driver.teamName ? 'Aktuelles Team: ' + data.driver.teamName : 'Aktuell keinem Team zugeordnet.'));
     if(data.statistics)$('driverProfileBody').append(driverStatisticsSection(data));
+    const numberInfo=ui('p','profile-racing-number',Number.isInteger(data.driver.racingNumber)?'Startnummer #'+data.driver.racingNumber:'Noch keine Startnummer gewählt.');$('driverProfileBody').prepend(numberInfo);
     $('driverProfileBody').append(ui('h3','','Bisherige Transfers'));
     $('driverProfileBody').append(data.transfers?.length ? transferRows(data.transfers) : ui('p', 'muted', 'Noch keine abgeschlossenen Transfers.'));
   } catch { if (request === profileRequest) $('driverProfileBody').textContent = 'Das Fahrerprofil konnte nicht geladen werden.'; }
@@ -633,7 +635,7 @@ async function loadDriverStatistics() {
    let own=list.find(row=>row.id===memberDriver.id);
    if(!own){const detail=await apiRequest('/api/drivers/'+memberDriver.id+'?season='+encodeURIComponent(season));if(sequence!==statisticsSequence)return;own={...detail.driver,statistics:detail.statistics};}
    const button=ui('button','outline','Mein Fahrerprofil öffnen');button.type='button';button.onclick=()=>openDriverProfile(memberDriver.id);
-   $('ownStatistics').replaceChildren(ui('h3','','Deine Statistiken · '+own.name),statisticsGrid(own.statistics),button);
+   $('ownStatistics').replaceChildren(ui('h3','','Deine Statistiken · '+own.name+(Number.isInteger(own.racingNumber)?' · #'+own.racingNumber:'')),statisticsGrid(own.statistics),button);
   }
  }catch{if(sequence===statisticsSequence)$('statisticsList').textContent='Die Fahrerstatistiken konnten nicht geladen werden. Bitte erneut versuchen.';}
 }
@@ -654,8 +656,13 @@ async function loadLeague(){
   else $('leagueRules').replaceChildren(ui('h2','','Regelwerk'),ui('p','muted','Das Regelwerk wurde noch nicht veröffentlicht.'));
  }catch{$('leagueNews').textContent='Liga-Inhalte konnten nicht geladen werden. Bitte die Seite erneut laden.';}
 }
+async function loadNumberSyncStatus(){
+ if(!isAdmin)return;
+ try{const data=await apiRequest('/api/admin/number-sync');$('numberSyncStatus').textContent=!data.configured?'Startnummern-Kanal noch nicht eingerichtet.':data.status?.lastError?'Startnummern: '+data.status.lastError:data.status?.lastCheckedAt?'Startnummern zuletzt geprüft: '+dateText(data.status.lastCheckedAt)+(data.pendingReplies?' · Antworten ausstehend: '+data.pendingReplies:''):'Startnummern: erster Abruf steht noch aus.';}catch{$('numberSyncStatus').textContent='Der Startnummern-Status konnte nicht geladen werden.';}
+}
 async function loadLeagueAdmin(){
  if(!isAdmin)return;
+ loadNumberSyncStatus();
  try{const data=await apiRequest('/api/admin/league');leagueRevision=data.settings.revision;$('leagueSeasonInput').value=data.settings.season||'';leagueContent=data.content||[];
  $('contentList').replaceChildren();for(const item of leagueContent){const button=ui('button','outline',item.title+' · '+(item.status==='published'?'Veröffentlicht':'Entwurf'));button.type='button';button.onclick=()=>editLeagueContent(item);$('contentList').append(button);}
  }catch(error){$('leagueAdminNotice').textContent=error.message;}
@@ -701,3 +708,6 @@ for(const link of document.querySelectorAll('[data-view-link]'))link.addEventLis
 window.addEventListener('hashchange',()=>applyView(true));
 applyView();
 (async()=>{await loadLeague();await loadDashboard();await boot();})();
+
+
+setInterval(()=>{if(document.hidden)return;const route=currentViewRoute();if(route==='teams')loadTeams();if(authenticated&&route==='fahrerstatistiken')loadDriverStatistics();if(isAdmin&&route==='administration')loadNumberSyncStatus();},60000);

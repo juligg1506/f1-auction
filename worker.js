@@ -171,7 +171,7 @@ if (discordTeam) {
       if(request.method==='GET'&&driverRead&&!await getSession(request,env))return safeError('Für den Fahrerbereich bitte mit Discord anmelden',401);
       if (path === '/api/drivers' && request.method === 'GET') {
   const result = await env.DB.prepare(`
-    SELECT id, name
+    SELECT id, name, racing_number AS racingNumber
     FROM drivers
     WHERE discord_active = 1
     ORDER BY name
@@ -189,7 +189,7 @@ if (path === '/api/teams' && request.method === 'GET') {
   `).all();
 
   const driversResult = await env.DB.prepare(`
-    SELECT id, name, team_id
+    SELECT id, name, team_id, racing_number AS racingNumber
     FROM drivers
     WHERE team_id IS NOT NULL
       AND discord_active = 1
@@ -203,7 +203,7 @@ if (path === '/api/teams' && request.method === 'GET') {
       .filter(driver => driver.team_id === team.id)
       .map(driver => ({
         id: driver.id,
-        name: driver.name
+        name: driver.name, racingNumber: driver.racingNumber
       }))
   })));
 
@@ -231,7 +231,7 @@ if (path === '/api/auctions' && request.method === 'GET') {
         const session = await getSession(request, env);
         if (!session) return safeError('Not authenticated', 401);
         const team = await env.DB.prepare('SELECT id, name, budget FROM teams WHERE owner_discord_id = ?').bind(session.discordId).first();
-        const driver = await env.DB.prepare('SELECT id, name FROM drivers WHERE discord_id = ?').bind(session.discordId).first();
+        const driver = await env.DB.prepare('SELECT id, name, racing_number AS racingNumber FROM drivers WHERE discord_id = ?').bind(session.discordId).first();
         return json({ discordId: session.discordId, username: session.username, admin: session.admin, team, driver: driver || null }, 200, cors);
       }
       if (path === '/api/logout' && request.method === 'POST') {
@@ -430,7 +430,7 @@ try {
 }
 
 if (path === '/api/features' && request.method === 'GET') {
-  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, guestReadOnly: true, driverStatistics: true, leaguePortal: true, protectedDriverArea: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
+  return json({ version: 2, raceResults: true, publicDashboard: true, raceCalendar: true, guestReadOnly: true, driverStatistics: true, racingNumbers: true, leaguePortal: true, protectedDriverArea: true, racePoints: RACE_POINTS, antiSnipeSeconds: 15, discordConfigured: Boolean(env.DISCORD_BOT_TOKEN && env.DISCORD_AUCTION_CHANNEL_ID) }, 200, cors);
 }
 if (path === '/api/transfers' && request.method === 'GET') {
   return json({ transfers: await transferHistory(env) }, 200, cors);
@@ -444,7 +444,7 @@ const driverMatch = /^\/api\/drivers\/(\d+)$/.exec(path);
 if (driverMatch && request.method === 'GET') {
   const id = Number(driverMatch[1]);
   if (!Number.isSafeInteger(id) || id < 1) return safeError('Ungültiger Fahrer', 400);
-  const driver = await env.DB.prepare(`SELECT d.id, d.name, d.team_id AS teamId,
+  const driver = await env.DB.prepare(`SELECT d.id, d.name, d.team_id AS teamId, d.racing_number AS racingNumber,
     t.name AS teamName, d.discord_active AS active FROM drivers d
     LEFT JOIN teams t ON t.id = d.team_id WHERE d.id = ?`).bind(id).first();
   if (!driver) return safeError('Fahrer nicht gefunden', 404);
@@ -581,6 +581,12 @@ if (isRaceAdminPath || isRacePublicPath) {
   return safeError('Route oder Methode nicht gefunden', 404);
 }
 
+if(path==='/api/admin/number-sync'&&request.method==='GET'){
+ const session=await getSession(request,env);if(!session)return safeError('Nicht angemeldet',401);if(!session.admin)return safeError('Nur Ligaleitung',403);
+ const status=await env.DB.prepare('SELECT last_checked_at AS lastCheckedAt,last_error AS lastError FROM discord_number_sync WHERE channel_id=?').bind(env.DISCORD_NUMBER_CHANNEL_ID||'').first();
+ const pending=await env.DB.prepare('SELECT COUNT(*) AS count FROM discord_number_commands WHERE delivered_at IS NULL').first();
+ return json({configured:Boolean(env.DISCORD_NUMBER_CHANNEL_ID&&env.DISCORD_BOT_TOKEN),status:status||null,pendingReplies:pending.count},200,cors);
+}
 if(path==='/api/league'&&request.method==='GET'){
  const data=await env.DB.batch([
   env.DB.prepare('SELECT season, revision FROM league_settings WHERE id=1'),
@@ -631,7 +637,7 @@ if(path==='/api/admin/league'||path.startsWith('/api/admin/league/')){
   return safeError('Internal server error', 500);
 }},
 async scheduled(event, env, ctx) {
-  ctx.waitUntil(syncDiscordDrivers(env));
+  ctx.waitUntil((async()=>{try{await syncDiscordDrivers(env);}catch(error){console.warn('Fahrer-Synchronisierung',error.message);}await syncDiscordNumbers(env);})());
   ctx.waitUntil((async () => {
     await closeExpiredAuctions(env);
     await startDueAuction(env);
@@ -830,7 +836,7 @@ function buildStandings(rows, kind) {
 
 async function driverStatistics(env, season) {
   const results=await env.DB.batch([
-    env.DB.prepare(`SELECT d.id, d.name, d.team_id AS teamId, t.name AS teamName, d.discord_active AS active
+    env.DB.prepare(`SELECT d.id, d.name, d.racing_number AS racingNumber, d.team_id AS teamId, t.name AS teamName, d.discord_active AS active
       FROM drivers d LEFT JOIN teams t ON t.id=d.team_id
       WHERE d.discord_active=1 OR EXISTS (SELECT 1 FROM race_results rr JOIN races r ON r.id=rr.race_id WHERE rr.driver_id=d.id AND r.status='published') ORDER BY d.name`),
     env.DB.prepare(`SELECT rr.driver_id AS driverId,rr.driver_name AS driverName,rr.team_id AS teamId,rr.team_name AS teamName,rr.position,rr.status,rr.points
@@ -855,3 +861,117 @@ async function driverRaceHistory(env,id,season) {
    ORDER BY r.race_date DESC,r.id DESC LIMIT 50`).bind(id,season).all()).results;
 }
 
+
+
+const NUMBER_DRIVER_ROLE_ID = '1569398144998051890';
+const numberLeaseGuard = `EXISTS(SELECT 1 FROM discord_number_sync WHERE channel_id=? AND lease_token=? AND lease_until>? AND last_message_id=?)`;
+function parseNumberCommand(content, botId) {
+  const text=String(content||'').trim().replace(new RegExp('^<@!?'+botId+'>\\s*'),'');
+  if(!/^!nummer(?:\s|$)/i.test(text))return null;
+  const match=/^!nummer\s+([1-9]\d?)$/i.exec(text);
+  return {number:match?Number(match[1]):null};
+}
+async function numberDiscord(env,path,options={}) {
+  const response=await fetch('https://discord.com/api/v10'+path,{...options,headers:{Authorization:`Bot ${env.DISCORD_BOT_TOKEN}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(8000)});
+  if(!response.ok){
+    const error=new Error('Discord HTTP '+response.status);error.status=response.status;
+    if(response.status===429){const body=await response.json().catch(()=>({}));error.retryAfter=Math.max(1,Number(body.retry_after)||60);}
+    throw error;
+  }
+  return response.json();
+}
+async function verifyNumberChannel(env,channelId) {
+  const app=await numberDiscord(env,'/oauth2/applications/@me');
+  if(!(Number(app.flags)&((1<<18)|(1<<19))))throw Error('Message Content Intent ist für den Bot nicht aktiviert.');
+  const channel=await numberDiscord(env,'/channels/'+channelId);
+  if(channel.guild_id!==DISCORD_GUILD_ID||![0,5].includes(channel.type))throw Error('Der Startnummern-Kanal muss ein Textkanal im Liga-Server sein.');
+  const [roles,member]=await Promise.all([numberDiscord(env,'/guilds/'+DISCORD_GUILD_ID+'/roles'),numberDiscord(env,'/guilds/'+DISCORD_GUILD_ID+'/members/'+app.id)]);
+  let permissions=roles.filter(role=>role.id===DISCORD_GUILD_ID||member.roles.includes(role.id)).reduce((p,role)=>p|BigInt(role.permissions),0n);
+  if(!(permissions&8n)){
+    const overwrites=channel.permission_overwrites||[];
+    const everyone=overwrites.find(o=>o.id===DISCORD_GUILD_ID&&o.type===0);if(everyone)permissions=(permissions&~BigInt(everyone.deny))|BigInt(everyone.allow);
+    const assigned=overwrites.filter(o=>o.type===0&&member.roles.includes(o.id));const deny=assigned.reduce((p,o)=>p|BigInt(o.deny),0n),allow=assigned.reduce((p,o)=>p|BigInt(o.allow),0n);permissions=(permissions&~deny)|allow;
+    const own=overwrites.find(o=>o.type===1&&o.id===app.id);if(own)permissions=(permissions&~BigInt(own.deny))|BigInt(own.allow);
+    const needed=1024n|2048n|65536n;if((permissions&needed)!==needed)throw Error('Dem Bot fehlen Kanal ansehen, Nachrichtenverlauf lesen oder Nachrichten senden.');
+  }
+  return app.id;
+}
+async function collectNumberMessages(env,channelId,cursor,deadline) {
+  const messages=[];let before=null;
+  for(let page=0;page<10;page++){
+    if(Date.now()>deadline)throw Error('Discord-Abruf dauert zu lange; wird ohne Datenverlust erneut versucht.');
+    const list=await numberDiscord(env,'/channels/'+channelId+'/messages?limit=100'+(before?'&before='+before:''));
+    if(!Array.isArray(list))throw Error('Ungültige Discord-Antwort');
+    const sorted=list.filter(m=>/^\d{15,25}$/.test(m.id)).sort((a,b)=>BigInt(a.id)<BigInt(b.id)?-1:BigInt(a.id)>BigInt(b.id)?1:0);
+    if(sorted.length!==list.length)throw Error('Ungültige Discord-Nachrichten-ID');
+    for(const message of sorted)if(BigInt(message.id)>BigInt(cursor))messages.push(message);
+    if(list.length<100||sorted.some(m=>BigInt(m.id)<=BigInt(cursor)))return messages.sort((a,b)=>BigInt(a.id)<BigInt(b.id)?-1:1);
+    const next=sorted[0]?.id;if(!next||(before&&BigInt(next)>=BigInt(before)))throw Error('Discord-Seitennavigation ohne Fortschritt');before=next;
+  }
+  throw Error('Mehr als 1.000 neue Kanalnachrichten: Synchronisierung pausiert, bitte Ligaleitung informieren.');
+}
+async function commitNumberMessage(env,channelId,lease,cursor,message,command,eligible) {
+  const now=new Date().toISOString(),guardArgs=[channelId,lease,now,cursor],statements=[];
+  if(command){
+    statements.push(env.DB.prepare(`INSERT INTO discord_number_commands(message_id,channel_id,discord_id,requested_number,outcome,created_at,next_attempt_at)
+      SELECT ?,?,?,?,CASE WHEN ? IS NULL THEN 'invalid'
+      WHEN ?=0 OR NOT EXISTS(SELECT 1 FROM drivers WHERE discord_id=? AND discord_active=1) THEN 'unknown_driver'
+      WHEN EXISTS(SELECT 1 FROM drivers WHERE racing_number=? AND discord_id<>?) THEN 'taken' ELSE 'accepted' END,?,?
+      WHERE ${numberLeaseGuard} ON CONFLICT(message_id) DO NOTHING`)
+      .bind(message.id,channelId,message.author.id,command.number,command.number,eligible?1:0,message.author.id,command.number,message.author.id,now,now,...guardArgs));
+    statements.push(env.DB.prepare(`UPDATE drivers SET racing_number=? WHERE discord_id=? AND discord_active=1
+      AND EXISTS(SELECT 1 FROM discord_number_commands WHERE message_id=? AND outcome='accepted') AND ${numberLeaseGuard}`)
+      .bind(command.number,message.author.id,message.id,...guardArgs));
+  }
+  statements.push(env.DB.prepare(`UPDATE discord_number_sync SET last_message_id=?,lease_until=? WHERE channel_id=? AND lease_token=? AND lease_until>? AND last_message_id=?`)
+    .bind(message.id,new Date(Date.now()+120000).toISOString(),...guardArgs));
+  const results=await env.DB.batch(statements);return results.at(-1).meta.changes===1;
+}
+function numberReply(item) {
+  if(item.outcome==='accepted')return 'Deine Startnummer ist jetzt #'+item.requested_number+'. Sie wird auf der Website angezeigt. Du kannst sie jederzeit mit !nummer <1–99> ändern.';
+  if(item.outcome==='taken')return 'Startnummer #'+item.requested_number+' ist bereits vergeben. Deine bisherige Nummer bleibt unverändert. Wähle eine andere Nummer mit !nummer <1–99>.';
+  if(item.outcome==='unknown_driver')return 'Dein Konto ist noch keinem aktiven Liga-Fahrer zugeordnet oder dir fehlt die Fahrerrolle. Bitte wende dich an die Ligaleitung. Es wurde keine Nummer geändert.';
+  return 'Bitte schreibe !nummer gefolgt von einer Zahl von 1 bis 99, zum Beispiel: !nummer 44. Es wurde keine Nummer geändert.';
+}
+async function deliverNumberReplies(env,channelId,lease,deadline) {
+  const items=(await env.DB.prepare(`SELECT * FROM discord_number_commands WHERE channel_id=? AND delivered_at IS NULL AND next_attempt_at<=? ORDER BY length(message_id),message_id LIMIT 5`).bind(channelId,new Date().toISOString()).all()).results;
+  for(const item of items){
+    if(Date.now()>deadline)return;
+    const own=await env.DB.prepare('SELECT 1 AS ok FROM discord_number_sync WHERE channel_id=? AND lease_token=? AND lease_until>?').bind(channelId,lease,new Date().toISOString()).first();if(!own)return;
+    try{
+      await numberDiscord(env,'/channels/'+channelId+'/messages',{method:'POST',body:JSON.stringify({content:numberReply(item),message_reference:{message_id:item.message_id,fail_if_not_exists:false},allowed_mentions:{parse:[],replied_user:false},nonce:'n'+item.message_id,enforce_nonce:true})});
+      await env.DB.prepare('UPDATE discord_number_commands SET delivered_at=? WHERE message_id=?').bind(new Date().toISOString(),item.message_id).run();
+    }catch(error){
+      const delay=Math.max(60,Number(error.retryAfter)||0,Math.min(3600,30*2**Math.min(item.attempts,7)));
+      await env.DB.prepare('UPDATE discord_number_commands SET attempts=attempts+1,next_attempt_at=? WHERE message_id=?').bind(new Date(Date.now()+delay*1000).toISOString(),item.message_id).run();
+      throw error;
+    }
+  }
+}
+async function syncDiscordNumbers(env) {
+  const channelId=env.DISCORD_NUMBER_CHANNEL_ID;if(!/^\d{15,25}$/.test(channelId||'')||!env.DISCORD_BOT_TOKEN)return;
+  const lease=crypto.randomUUID(),now=new Date().toISOString(),deadline=Date.now()+45000;
+  const claim=await env.DB.prepare(`UPDATE discord_number_sync SET lease_token=?,lease_until=? WHERE channel_id=? AND (lease_until IS NULL OR lease_until<?) AND (next_poll_at IS NULL OR next_poll_at<=?) RETURNING last_message_id`)
+    .bind(lease,new Date(Date.now()+120000).toISOString(),channelId,now,now).all();
+  if(!claim.results.length)return;
+  try{
+    const botId=await verifyNumberChannel(env,channelId);let cursor=claim.results[0].last_message_id;
+    const messages=await collectNumberMessages(env,channelId,cursor,deadline);
+    for(const message of messages){
+      if(Date.now()>deadline)break;
+      const human=message.author&&!message.author.bot&&!message.webhook_id&&/^\d{15,25}$/.test(message.author.id)&&[0,19].includes(message.type??0);
+      const command=human?parseNumberCommand(message.content,botId):null;let eligible=false;
+      if(command&&command.number!==null){
+        try{const member=await numberDiscord(env,'/guilds/'+DISCORD_GUILD_ID+'/members/'+message.author.id);eligible=member.roles.includes(NUMBER_DRIVER_ROLE_ID);}
+        catch(error){if(error.status!==404)throw error;}
+      }
+      if(!await commitNumberMessage(env,channelId,lease,cursor,message,command,eligible))return;cursor=message.id;
+    }
+    await deliverNumberReplies(env,channelId,lease,deadline);
+    await env.DB.prepare('UPDATE discord_number_sync SET last_checked_at=?,last_error=NULL,next_poll_at=NULL WHERE channel_id=? AND lease_token=?').bind(new Date().toISOString(),channelId,lease).run();
+  }catch(error){
+    const message=String(error.message||'Discord-Synchronisierung fehlgeschlagen').slice(0,300);
+    await env.DB.prepare('UPDATE discord_number_sync SET last_checked_at=?,last_error=?,next_poll_at=? WHERE channel_id=? AND lease_token=?').bind(new Date().toISOString(),message,new Date(Date.now()+Math.max(60,Number(error.retryAfter)||0)*1000).toISOString(),channelId,lease).run();
+    console.warn('Startnummern-Synchronisierung',message);
+  }finally{await env.DB.prepare('UPDATE discord_number_sync SET lease_token=NULL,lease_until=NULL WHERE channel_id=? AND lease_token=?').bind(channelId,lease).run();}
+}

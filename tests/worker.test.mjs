@@ -29,8 +29,8 @@ function reset(){try{unlinkSync(dbfile)}catch{};const base=`CREATE TABLE teams(i
 CREATE TABLE drivers(id INTEGER PRIMARY KEY,name TEXT,team_id INTEGER REFERENCES teams(id),discord_id TEXT UNIQUE,discord_active INTEGER);
 CREATE TABLE auctions(id INTEGER PRIMARY KEY AUTOINCREMENT,driver_id INTEGER REFERENCES drivers(id),starting_price INTEGER,ends_at TEXT,status TEXT,leading_bid_id INTEGER);
 CREATE TABLE bids(id INTEGER PRIMARY KEY AUTOINCREMENT,auction_id INTEGER REFERENCES auctions(id),team_id INTEGER REFERENCES teams(id),amount INTEGER,created_at TEXT);`;
-for(const statement of (base+(readFileSync(join(root,'migrations/001_auction_features.sql'),'utf8')+readFileSync(join(root,'migrations/002_race_results.sql'),'utf8')+readFileSync(join(root,'migrations/003_public_calendar.sql'),'utf8')+readFileSync(join(root,'migrations/004_league_portal.sql'),'utf8')).replace(/^--.*$/gm,'')).split(';').filter(s=>s.trim()))sql(statement);
-sql("INSERT INTO teams VALUES(1,'Ferrari','admin',100000000),(2,'McLaren','other',100000000)");sql("INSERT INTO drivers VALUES(1,'Theo',NULL,'100',1),(2,'Moritz',1,'200',1)");messages=[];discordFailure=false;}
+for(const statement of (base+(readFileSync(join(root,'migrations/001_auction_features.sql'),'utf8')+readFileSync(join(root,'migrations/002_race_results.sql'),'utf8')+readFileSync(join(root,'migrations/003_public_calendar.sql'),'utf8')+readFileSync(join(root,'migrations/004_league_portal.sql'),'utf8')+readFileSync(join(root,'migrations/005_driver_numbers.sql'),'utf8')).replace(/^--.*$/gm,'')).split(';').filter(s=>s.trim()))sql(statement);
+sql("INSERT INTO teams VALUES(1,'Ferrari','admin',100000000),(2,'McLaren','other',100000000)");sql("INSERT INTO drivers(id,name,team_id,discord_id,discord_active) VALUES(1,'Theo',NULL,'100',1),(2,'Moritz',1,'200',1)");messages=[];discordFailure=false;}
 async function cron(){worker.scheduled({},env,ctx);await drain()}
 reset();
 assert.equal((await request('/api/admin/auctions',null,{driverId:1})).status,401);
@@ -193,7 +193,7 @@ assert.equal((await request('/api/me','viewer')).body.driver.id,1);
 assert.equal((await request('/api/me?driverId=2','viewer')).body.driver.id,1);
 assert.equal((await request('/api/me',null)).status,401);
 assert.equal((await request('/api/me','other')).body.driver,null);
-sql("INSERT INTO drivers VALUES(3,'Test DSQ',NULL,'300',1),(4,'Test Neuling',NULL,'400',1)");
+sql("INSERT INTO drivers(id,name,team_id,discord_id,discord_active) VALUES(3,'Test DSQ',NULL,'300',1),(4,'Test Neuling',NULL,'400',1)");
 const mixed={name:'Brasilien',season:'2026',raceDate:'2026-12-15',revision:3,status:'published',calendarVisible:false,results:[{driverId:1,teamId:2,position:null,status:'dnf'},{driverId:2,teamId:1,position:null,status:'dns'},{driverId:3,teamId:null,position:null,status:'dsq'}]};
 assert.equal((await request('/api/admin/races/4','admin',mixed)).status,200);
 stats=(await request('/api/driver-stats?season=2026','viewer')).body;
@@ -228,3 +228,4 @@ assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'r
 assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'rules'})).status,409);
 assert.equal((await request('/api/admin/league/content','admin',{...news,title:''})).status,400);
 console.log('PASS public VTR Tier 1, unknown season, login-only driver area, budget privacy, CMS draft/publication and stale revisions');
+
