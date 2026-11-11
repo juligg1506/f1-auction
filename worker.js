@@ -39,20 +39,20 @@ async function getSession(request, env) {
   const match = /^Bearer ([a-f0-9]{64})$/.exec(request.headers.get('Authorization') || '');
   if (!match) return null;
   const key = 'session:' + await sha256(match[1]);
-  const session = await env.SESSIONS.get(key, 'json');
+  const session = await readStoredValue(env,key, 'json');
   return session ? { ...session, key } : null;
 }
 async function verifyServerMember(env,session){
  const now=Date.now();if(Number.isFinite(session.guildVerifiedAt)&&now-session.guildVerifiedAt>=0&&now-session.guildVerifiedAt<15000)return true;
  const key='membership:'+DISCORD_GUILD_ID+':'+session.discordId;
- const cached=await env.SESSIONS.get(key,'json');if(cached?.member&&Number.isFinite(cached.checkedAt)&&now-cached.checkedAt>=0&&now-cached.checkedAt<15000)return true;
+ const cached=await readStoredValue(env,key,'json');if(cached?.member&&Number.isFinite(cached.checkedAt)&&now-cached.checkedAt>=0&&now-cached.checkedAt<15000)return true;
  if(!env.DISCORD_BOT_TOKEN)throw new Error('Mitgliedschaftsprüfung ist nicht eingerichtet');
  let response;
  try{response=await fetch('https://discord.com/api/v10/guilds/'+DISCORD_GUILD_ID+'/members/'+session.discordId,{headers:{Authorization:'Bot '+env.DISCORD_BOT_TOKEN},signal:AbortSignal.timeout(8000)});}catch{throw new Error('Mitgliedschaft kann gerade nicht bestätigt werden');}
- if(response.status===404){await env.SESSIONS.delete(key);return false;}
+ if(response.status===404){await deleteStoredValue(env,key);return false;}
  if(!response.ok)throw new Error('Mitgliedschaft kann gerade nicht bestätigt werden');
  const member=await response.json();if(!Array.isArray(member.roles))throw new Error('Ungültige Antwort bei der Mitgliedschaftsprüfung');
- await env.SESSIONS.put(key,JSON.stringify({member:true,checkedAt:Date.now()}),{expirationTtl:60});return true;
+ await writeStoredValue(env,key,JSON.stringify({member:true,checkedAt:Date.now()}),{expirationTtl:60});return true;
 }
 async function getDiscordTeam(accessToken) {
   const response = await fetch(
@@ -91,7 +91,7 @@ export default {
         const state = random();
         const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
         const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(verifier))));
-        await env.SESSIONS.put('oauth:' + await sha256(state), JSON.stringify({ verifier }), { expirationTtl: 600 });
+        await writeStoredValue(env,'oauth:' + await sha256(state), JSON.stringify({ verifier }), { expirationTtl: 600 });
         const oauth = new URL('https://discord.com/oauth2/authorize');
         oauth.searchParams.set('client_id', env.DISCORD_CLIENT_ID);
         oauth.searchParams.set('redirect_uri', env.DISCORD_REDIRECT_URI);
@@ -109,9 +109,9 @@ export default {
         if (url.searchParams.has('error')) return redirect(FRONTEND + '#login_error=discord_denied', { 'Set-Cookie': cookie('', 0) });
         if (!state || !code || !savedCookie || state !== savedCookie || !/^[a-f0-9]{64}$/.test(state)) return safeError('Invalid OAuth state', 403);
         const stateKey = 'oauth:' + await sha256(state);
-        const saved = await env.SESSIONS.get(stateKey, 'json');
+        const saved = await readStoredValue(env,stateKey, 'json');
         if (!saved) return safeError('Login expired; try again', 403);
-        await env.SESSIONS.delete(stateKey);
+        await deleteStoredValue(env,stateKey);
         const body = new URLSearchParams({ client_id: env.DISCORD_CLIENT_ID, client_secret: env.DISCORD_CLIENT_SECRET, grant_type: 'authorization_code', code, redirect_uri: env.DISCORD_REDIRECT_URI, code_verifier: saved.verifier });
         const tokenResponse = await fetch('https://discord.com/api/v10/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
         if (!tokenResponse.ok) return safeError('Discord token exchange failed', 502);
@@ -168,7 +168,7 @@ if (discordTeam) {
   }
 }
 
-        await env.SESSIONS.put('profile:' + profile.id, JSON.stringify({ username: profile.global_name || profile.username }), { expirationTtl: 2592000 });
+        await writeStoredValue(env,'profile:' + profile.id, JSON.stringify({ username: profile.global_name || profile.username }), { expirationTtl: 2592000 });
         const sessionToken = random();
         const sessionKey = 'session:' + await sha256(sessionToken);
         const session = {
@@ -178,7 +178,7 @@ if (discordTeam) {
         discordTeam: discordTeam,
         guildId:DISCORD_GUILD_ID,membershipPolicy:1,guildVerifiedAt:Date.now(),expiresAt:Date.now()+3600000
         };
-        await env.SESSIONS.put(sessionKey, JSON.stringify(session), { expirationTtl: 3600 });
+        await writeStoredValue(env,sessionKey, JSON.stringify(session), { expirationTtl: 3600 });
         // Fragment never goes to GitHub Pages server. Frontend immediately removes it.
         return redirect(FRONTEND + '#session=' + sessionToken, { 'Set-Cookie': cookie('', 0), 'Referrer-Policy': 'no-referrer' });
       }
@@ -187,11 +187,11 @@ if (discordTeam) {
         const memberSession=await getSession(request,env);
         if(!memberSession)return safeError('Bitte mit Discord als Servermitglied anmelden',401);
         if(memberSession.membershipPolicy!==1||memberSession.guildId!==DISCORD_GUILD_ID||!Number.isFinite(memberSession.expiresAt)||memberSession.expiresAt<=Date.now()){
-          await env.SESSIONS.delete(memberSession.key);return safeError('Bitte erneut mit Discord anmelden, um die Servermitgliedschaft zu bestätigen',401);
+          await deleteStoredValue(env,memberSession.key);return safeError('Bitte erneut mit Discord anmelden, um die Servermitgliedschaft zu bestätigen',401);
         }
         let isMember;try{isMember=await verifyServerMember(env,memberSession);}catch{return safeError('Die Discord-Mitgliedschaft kann gerade nicht geprüft werden. Bitte später erneut versuchen.',503);}
         if(!isMember){
-          await env.SESSIONS.delete(memberSession.key);return safeError('Zugang nur für Mitglieder unseres Discord-Servers',401);
+          await deleteStoredValue(env,memberSession.key);return safeError('Zugang nur für Mitglieder unseres Discord-Servers',401);
         }
       }
       const driverRead = ['/api/drivers','/api/auctions','/api/transfers','/api/driver-stats','/api/racing-number-rules'].includes(path) || /^\/api\/drivers\/\d+$/.test(path);
@@ -225,7 +225,7 @@ if (path === '/api/teams' && request.method === 'GET') {
 
   const teams = await Promise.all(result.results.map(async team => ({
     id: team.id, name: team.name, budget: viewerSession ? team.budget : undefined,
-    owner_username: team.owner_discord_id ? (await env.SESSIONS.get('profile:' + team.owner_discord_id, 'json'))?.username || null : null,
+    owner_username: team.owner_discord_id ? (await readStoredValue(env,'profile:' + team.owner_discord_id, 'json'))?.username || null : null,
     drivers: driversResult.results
       .filter(driver => driver.team_id === team.id)
       .map(driver => ({
@@ -263,7 +263,7 @@ if (path === '/api/auctions' && request.method === 'GET') {
       }
       if (path === '/api/logout' && request.method === 'POST') {
         const session = await getSession(request, env);
-        if (session) await env.SESSIONS.delete(session.key);
+        if (session) await deleteStoredValue(env,session.key);
         return json({ ok: true }, 200, cors);
       }
 if (path === '/api/admin/auctions' && request.method === 'POST') {    
@@ -668,6 +668,7 @@ if(path==='/api/admin/league'||path.startsWith('/api/admin/league/')){
   return safeError('Internal server error', 500);
 }},
 async scheduled(event, env, ctx) {
+  ctx.waitUntil(cleanSessionStorage(env));
   ctx.waitUntil((async()=>{try{await syncDiscordDrivers(env);}catch(error){console.warn('Fahrer-Synchronisierung',error.message);}await syncDiscordNumbers(env);})());
   ctx.waitUntil((async () => {
     await closeExpiredAuctions(env);
@@ -711,7 +712,7 @@ async function syncDiscordDrivers(env) {
     env.DB.prepare("UPDATE auctions SET status='cancelled' WHERE status='active' AND driver_id IN(SELECT id FROM drivers WHERE discord_active=0)"),
     env.DB.prepare("UPDATE auction_queue SET status='cancelled' WHERE status='pending' AND driver_id IN(SELECT id FROM drivers WHERE discord_active=0)")
   ]);
-  try{await env.SESSIONS.put('driver_sync_status',JSON.stringify({checkedAt:new Date().toISOString(),activeDrivers:drivers.length}),{expirationTtl:86400});}catch{console.warn('Fahrerabgleich-Status konnte nicht gespeichert werden');}
+  try{await writeStoredValue(env,'driver_sync_status',JSON.stringify({checkedAt:new Date().toISOString(),activeDrivers:drivers.length}),{expirationTtl:86400});}catch{console.warn('Fahrerabgleich-Status konnte nicht gespeichert werden');}
   return drivers.length;
 }
 async function transferHistory(env, driverId = null) {
@@ -1005,3 +1006,44 @@ async function syncDiscordNumbers(env) {
 
 
 
+
+
+// All application KV writes pass through this D1-backed, fail-closed budget.
+// D1 holds the authoritative value, including expiry/deletion tombstones.
+// KV reads are retained only for pre-migration values not present in D1.
+const KV_DAILY_WRITE_LIMIT=1000;
+async function readStoredValue(env,key,type) {
+ const row=await env.DB.prepare('SELECT value,expires_at FROM session_storage WHERE key=?').bind(key).first();
+ if(row){if(row.value===null||row.expires_at<=Date.now())return null;return type==='json'?JSON.parse(row.value):row.value;}
+ return env.SESSIONS.get(key,type);
+}
+async function writeStoredValue(env,key,value,options={}) {
+ const ttl=options.expirationTtl;
+ if(typeof value!=='string'||!Number.isInteger(ttl)||ttl<1||ttl>2592000)throw Error('Ungültige Speicherdauer');
+ const now=Date.now(),day=new Date(now).toISOString().slice(0,10),expires=now+ttl*1000;
+ const save=env.DB.prepare(`INSERT INTO session_storage(key,value,expires_at) VALUES(?,?,?)
+  ON CONFLICT(key) DO UPDATE SET value=excluded.value,expires_at=excluded.expires_at`).bind(key,value,expires);
+ // Background status and membership caches never consume KV write quota.
+ const mirror=/^(oauth:|session:|profile:)/.test(key);
+ if(!mirror){await save.run();return;}
+ const reservation=env.DB.prepare(`INSERT INTO kv_write_budget(day,attempts) VALUES(?,1)
+  ON CONFLICT(day) DO UPDATE SET attempts=attempts+1 WHERE attempts<? RETURNING attempts`).bind(day,KV_DAILY_WRITE_LIMIT);
+ const results=await env.DB.batch([save,reservation]);
+ if(!results[1].results.length)return;
+ // Count attempts, including failures: never release a reservation or retry KV.
+ // D1 is committed first, so an exhausted platform quota cannot break logins.
+ try{await env.SESSIONS.put(key,value,options);}catch{console.warn('KV-Schreibversuch fehlgeschlagen; D1-Wert bleibt verfügbar');}
+}
+async function deleteStoredValue(env,key) {
+ // Prevent a stale KV copy from reviving a logged-out or expired session.
+ await env.DB.prepare(`INSERT INTO session_storage(key,value,expires_at) VALUES(?,NULL,?)
+  ON CONFLICT(key) DO UPDATE SET value=NULL,expires_at=excluded.expires_at`).bind(key,Date.now()).run();
+}
+async function cleanSessionStorage(env) {
+ // KV mirrors live at most 30 days; retain tombstones for 31 days after expiry.
+ const now=Date.now();await env.DB.batch([
+  env.DB.prepare('UPDATE session_storage SET value=NULL WHERE expires_at<=? AND value IS NOT NULL').bind(now),
+  env.DB.prepare('DELETE FROM session_storage WHERE expires_at<?').bind(now-31*86400000),
+  env.DB.prepare('DELETE FROM kv_write_budget WHERE day<?').bind(new Date(now-8*86400000).toISOString().slice(0,10))
+ ]);
+}

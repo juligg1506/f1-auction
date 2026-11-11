@@ -30,6 +30,7 @@ CREATE TABLE drivers(id INTEGER PRIMARY KEY,name TEXT,team_id INTEGER REFERENCES
 CREATE TABLE auctions(id INTEGER PRIMARY KEY AUTOINCREMENT,driver_id INTEGER REFERENCES drivers(id),starting_price INTEGER,ends_at TEXT,status TEXT,leading_bid_id INTEGER);
 CREATE TABLE bids(id INTEGER PRIMARY KEY AUTOINCREMENT,auction_id INTEGER REFERENCES auctions(id),team_id INTEGER REFERENCES teams(id),amount INTEGER,created_at TEXT);`;
 for(const statement of (base+(readFileSync(join(root,'migrations/001_auction_features.sql'),'utf8')+readFileSync(join(root,'migrations/002_race_results.sql'),'utf8')+readFileSync(join(root,'migrations/003_public_calendar.sql'),'utf8')+readFileSync(join(root,'migrations/004_league_portal.sql'),'utf8')+readFileSync(join(root,'migrations/005_driver_numbers.sql'),'utf8')).replace(/^--.*$/gm,'')).split(';').filter(s=>s.trim()))sql(statement);
+for(const statement of readFileSync(join(root,'migrations/007_kv_write_budget.sql'),'utf8').replace(/^--.*$/gm,'').split(';').filter(x=>x.trim()))sql(statement);
 const ruleMigration=readFileSync(join(root,'migrations/006_reserved_f1_numbers.sql'),'utf8');
 const triggers=ruleMigration.match(/CREATE TRIGGER[\s\S]*?END;/g)||[];
 for(const statement of ruleMigration.replace(/CREATE TRIGGER[\s\S]*?END;/g,'').split(';').filter(x=>x.trim()))sql(statement);
@@ -232,5 +233,6 @@ assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'r
 assert.equal((await request('/api/admin/league/content','admin',{...news,kind:'rules'})).status,409);
 assert.equal((await request('/api/admin/league/content','admin',{...news,title:''})).status,400);
 console.log('PASS member-only VTR Tier 1, unknown season, protected driver area, CMS draft/publication and stale revisions');
+
 
 
