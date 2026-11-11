@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#080a0f">
+<meta name="theme-color" content="#07090d">
 <title>Virtual Tier Racing | Tier 1</title>
 <meta name="description" content="Virtual Tier Racing: Rennkalender, Ergebnisse, Teams und Wertungen der Tier 1. Der Fahrerbereich ist über Discord erreichbar.">
 <style>
@@ -360,10 +360,12 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 @media(max-width:760px){.hero.dashboard-hero h1{font-size:48px;letter-spacing:-2.5px}.hero.dashboard-hero h1 em{display:block}.hero.dashboard-hero p{font-size:15px}}
 @media(max-width:360px){.hero.dashboard-hero h1{font-size:42px}}
 </style>
+<link rel="stylesheet" href="assets/vtr-brand.css?v=20261111-logo-1">
+<link rel="icon" type="image/jpeg" href="assets/vtr-logo.jpg">
 </head>
 <body>
 <aside class="sidebar" aria-label="Hauptnavigation">
-<a class="brand" href="#start" aria-label="Virtual Tier Racing Startseite">VTR<span>VIRTUAL TIER RACING<small>TIER 1</small></span></a>
+<a class="brand" href="#start" aria-label="Virtual Tier Racing Startseite"><span class="brand-logo"><img src="assets/vtr-logo.jpg" alt="VTR" width="1280" height="1280"></span><span class="brand-name">VIRTUAL TIER RACING<small>TIER 1</small></span></a>
 <button id="menuToggle" class="outline menu-toggle" aria-expanded="false" aria-controls="portalNav">Menü</button>
 <nav id="portalNav">
 <a class="nav-link" href="#start" data-view-link="start">Start</a>
@@ -379,7 +381,7 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 <div class="page">
 <header class="topbar"><div><div class="top-heading">Fahrermarkt</div><div class="top-sub">Teams, Fahrer und Auktionen</div></div><div class="account-actions" id="accountActions" hidden><button id="logout" class="secondary hidden">Abmelden</button></div></header>
 <main id="dashboard"><section id="entryScreen" class="entry-screen"><div class="entry-brand">VTR <span>TIER 1</span></div><section id="guest" class="guest-login-panel" aria-label="Anmeldung und Gastzugang">
-<div id="loginChoice" class="login-choice"><div><h2>Dein Platz im Fahrerbereich</h2><p>Melde dich mit Discord an, um Fahrerstatistiken, dein Profil und den Fahrermarkt zu öffnen. Kalender, Ergebnisse und Teams sind öffentlich zugänglich.</p></div><div class="login-choice-actions"><button id="login" type="button">Mit Discord anmelden</button><button id="guestContinue" class="outline" type="button">Zur öffentlichen Website</button></div></div>
+<div id="loginChoice" class="login-choice"><div><span class="login-logo"><img src="assets/vtr-logo.jpg" alt="Virtual Tier Racing" width="1280" height="1280"></span><h2>Dein Platz im Fahrerbereich</h2><p>Melde dich mit Discord an, um Fahrerstatistiken, dein Profil und den Fahrermarkt zu öffnen. Kalender, Ergebnisse und Teams sind öffentlich zugänglich.</p></div><div class="login-choice-actions"><button id="login" type="button">Mit Discord anmelden</button><button id="guestContinue" class="outline" type="button">Zur öffentlichen Website</button></div></div>
 </section></section>
 <section class="hero dashboard-hero" data-page-view="dashboard" hidden>
 <div class="hero-content"><div class="eyebrow">VIRTUAL TIER RACING / TIER 1</div><h1>VIRTUAL<br>TIER <em>RACING.</em></h1><p>Eine Liga. Ein Grid. Alles im Blick.</p><div class="hero-actions"><a class="portal-button" href="#kalender">Zum Rennkalender</a><a class="portal-button outline" href="#fahrerbereich">Fahrerbereich</a></div></div>
@@ -416,11 +418,12 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 <form id="createAuction" class="card"><h3>🏎️ Fahrerauktion starten</h3><label>Fahrer<select name="driverId" id="auctionDriver" required><option value="">Fahrer auswählen</option></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><p class="muted">Gebotsschritt: 250.000 Coins</p><p class="muted">Auktionsdauer: 3 Minuten</p><button type="submit">Auktion starten</button></form>
 </div><section id="raceCreateSection" class="hidden"><h3>Rennen anlegen</h3><p class="muted">Zunächst als Entwurf anlegen. Ergebnisse werden erst nach der Veröffentlichung sichtbar und gewertet.</p><form id="createRace" class="card"><label>Rennen<input name="raceName" maxlength="120" placeholder="z. B. Großer Preis von Österreich" required></label><label>Saison / Meisterschaft<input id="newRaceSeason" name="raceSeason" maxlength="40" required></label><label>Renndatum<input name="raceDate" type="date" required></label><label class="calendar-checkbox"><input name="calendarVisible" type="checkbox" checked>Renntermin vor Veröffentlichung der Ergebnisse im Kalender zeigen</label><p id="raceCreateNotice" role="status" aria-live="polite"></p><button type="submit">Rennen als Entwurf anlegen</button></form></section><section id="queueSection" class="hidden"><h3>Auktionen planen</h3><p class="muted">Geplante Auktionen starten ab dem gewählten Termin, sobald der Auktionsplatz frei ist. Prüfung ungefähr einmal pro Minute.</p><form id="planAuction" class="card"><label>Fahrer<select name="driverId" id="queueDriver" required></select></label><label>Startpreis (Coins)<input name="startingPrice" type="number" min="250000" step="250000" value="2500000" required></label><label>Termin (Zeitzone deines Geräts)<input name="scheduledAt" type="datetime-local" required></label><button type="submit">Auktion vormerken</button></form><ul id="queueList" class="queue-list"></ul><p id="discordDeliveryStatus" class="muted"></p></section><p><button id="close" type="button" class="secondary">Abgelaufene Auktionen abschließen</button></p></section>
 </div>
-</main><footer>Virtual Tier Racing · Tier 1</footer>
+</main><footer><span class="footer-logo"><img src="assets/vtr-logo.jpg" alt="VTR" width="1280" height="1280" loading="lazy"></span><span>Virtual Tier Racing · Tier 1</span></footer>
 </div>
 <script src="config.js"></script>
 <script type="module" src="app.js?v=20261111-vtr-portal-1"></script>
 </body></html>
+
 
 
 

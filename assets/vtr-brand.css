@@ -1,0 +1,36 @@
+/* VTR identity: the supplied logo stays unchanged; object-fit frames its mark. */
+:root{--bg:#07090d;--surface:#10141b;--surface2:#171c27;--stroke:#282e3a;--text:#f4f6fb;--muted:#a9b1c2;--accent:#21d4f4;--red:#21d4f4;--vtr-gradient:linear-gradient(105deg,#00deee 0%,#087cf7 44%,#6028ff 72%,#d600ed 100%)}
+body{background:var(--bg);color:var(--text)}
+.sidebar{background:#000;border-bottom-color:#222936;padding-top:15px;padding-bottom:15px}
+.sidebar .brand{gap:14px;letter-spacing:0;font-style:normal}
+.sidebar .brand .brand-logo{display:block;width:138px;height:43px;overflow:hidden;flex-shrink:0;background:#000}
+.brand-logo img,.login-logo img{width:100%;height:100%;object-fit:cover;object-position:50% 48%;display:block}
+.sidebar .brand .brand-name{font-size:9px;letter-spacing:1.15px;color:#bbc3d3;border-left:1px solid #323849;padding-left:14px;line-height:1.8}
+.brand small{color:var(--accent);font-size:9px;letter-spacing:2px}
+.nav-link{color:#b1bacb;font-size:12px}.nav-link:hover{background:#121722;color:#fff}.nav-link.active{border-bottom-color:var(--accent);color:#fff}
+.top-heading{color:#8c98b0;font-size:10px;letter-spacing:2px}
+.hero.dashboard-hero{background:#000;border:1px solid #262f41;min-height:490px}
+.hero.dashboard-hero:after{background:repeating-linear-gradient(125deg,transparent 0 45px,#6886cb12 46px 47px);opacity:.65}
+.hero.dashboard-hero h1{color:#f3f6ff;font-size:clamp(48px,5.5vw,78px);font-weight:850;line-height:.98}
+.hero.dashboard-hero h1 em{background:var(--vtr-gradient);background-clip:text;-webkit-background-clip:text;color:transparent;font-style:italic}
+.hero.dashboard-hero .eyebrow{color:#9cacc9;letter-spacing:2.3px}
+.hero.dashboard-hero p{color:#aab5ca}.race-preview{border-top:0;position:relative;padding-top:30px}.race-preview:before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--vtr-gradient)}
+.race-preview h2{font-weight:600}.season-label{border-color:#2b3342;color:#8e9db8}.season-label strong{color:#ecf1fc}
+.portal-button,button:not(.outline):not(.secondary){background:var(--accent);color:#06121a;border-color:var(--accent)}
+.portal-button{border-radius:2px;font-weight:650}.portal-button.outline{background:transparent;color:#e9effb;border-color:#46536d}.portal-button.outline:hover{border-color:#91a8d3;background:#101722}
+.outline,.secondary{color:#dce6fa;border-color:#364158}.secondary{background:#202a3d}.outline:hover:not(:disabled){background:#151d2b;border-color:#64769a}
+button:focus-visible,a:focus-visible{outline-color:var(--accent)}input:focus,select:focus,textarea:focus{outline:2px solid #21d4f459;border-color:var(--accent)}
+.card{background:#10141b;border-color:#293142}.card h2,.card h3{color:#edf2ff}.muted{color:var(--muted)}
+#publicDashboard .standings-grid .card{border-top:2px solid #257fe9}#publicDashboard .standings-grid .card:nth-child(2){border-top-color:#9551ef}
+.news-grid article{background:#10141b;border-top-color:#7d43e9}.section:before{background:var(--accent)}
+.guest-login-panel{background:#0b0f16;border-color:#29354d;border-top:2px solid #6b44ee}
+.login-logo{display:block;width:220px;height:76px;margin:0 0 26px;overflow:hidden;background:#000;border-radius:3px}
+#login{background:#21d4f4;color:#06121a;font-weight:650}#guestContinue{border-color:#3d4c69;color:#cad5e9}
+#driverDialog,#raceDialog{background:#0e131d;border-color:#303f59;border-top-color:var(--accent)}
+#auctionPage .auction-overview{background:#101722;border-color:#30466a}#auctionPage .bid-primary{background:var(--accent);color:#05141b}.bid-warning,#auctionTimer.is-expired{color:#ff7b8b!important}.outbid-alert{background:#301824;border-left-color:#ff6d88}
+footer{display:flex;align-items:center;justify-content:center;gap:18px;background:#000;color:#92a0ba;border-top-color:#232b39}footer .footer-logo{width:70px;height:27px;overflow:hidden;display:block}footer img{width:100%;height:100%;object-fit:cover;object-position:50% 48%}
+@media(max-width:1100px){.sidebar .brand .brand-logo{width:120px;height:39px}.sidebar .brand .brand-name{font-size:8px;padding-left:11px}.sidebar nav{gap:0}.nav-link{font-size:11px}}
+@media(max-width:1000px){.hero.dashboard-hero h1{font-size:66px}}
+@media(max-width:760px){.sidebar{padding:13px 20px}.sidebar .brand{gap:10px}.sidebar .brand .brand-logo{width:105px;height:36px}.sidebar .brand .brand-name{font-size:8px;letter-spacing:.7px}.brand small{font-size:8px}.menu-toggle{font-size:12px}.sidebar nav .nav-link{font-size:13px}.hero.dashboard-hero{min-height:0}.hero.dashboard-hero h1{font-size:48px}.race-preview{margin-top:15px}.login-logo{width:190px;height:65px}footer{gap:12px;font-size:11px}}
+@media(max-width:360px){.sidebar .brand .brand-name{font-size:7px;padding-left:8px}.sidebar .brand .brand-logo{width:88px;height:31px}.sidebar .brand{gap:6px}.sidebar{padding:12px 16px}.hero.dashboard-hero h1{font-size:42px}.menu-toggle{padding:8px 10px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
