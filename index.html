@@ -360,6 +360,7 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 @media(max-width:760px){.hero.dashboard-hero h1{font-size:48px;letter-spacing:-2.5px}.hero.dashboard-hero h1 em{display:block}.hero.dashboard-hero p{font-size:15px}}
 @media(max-width:360px){.hero.dashboard-hero h1{font-size:42px}}
 .racing-number{display:inline-block;margin-right:8px;padding:3px 7px;border:1px solid #38445c;color:#a5efff;font-size:.8em;font-variant-numeric:tabular-nums;border-radius:3px}.number-guide{margin:24px 0;max-width:850px}.number-guide p{line-height:1.65}.number-guide code{font-size:1.05em;color:#a5efff}.profile-racing-number{font-size:21px;font-weight:650;color:#a5efff}
+.twitch-frame{width:100%;background:#000;border:1px solid #303c55;overflow:hidden;margin:28px 0 18px}.twitch-frame iframe{display:block;width:100%;height:max(300px, min(65vw, 650px));aspect-ratio:16/9;border:0}.stream-page{max-width:1200px}.stream-page h1{margin-bottom:16px}
 </style>
 <link rel="stylesheet" href="assets/vtr-brand.css?v=20261111-logo-1">
 <link rel="icon" type="image/jpeg" href="assets/vtr-logo.jpg">
@@ -373,6 +374,7 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 <a class="nav-link" href="#kalender" data-view-link="kalender">Kalender</a>
 <a class="nav-link" href="#rennergebnisse" data-view-link="rennergebnisse">Ergebnisse</a>
 <a class="nav-link" href="#teams" data-view-link="teams">Teams</a>
+<a class="nav-link" href="#livestream" data-view-link="livestream">Livestream</a>
 <a class="nav-link" href="#liga" data-view-link="liga">Liga</a>
 <a class="nav-link" href="#fahrerbereich" data-view-link="fahrerbereich">Fahrerbereich</a>
 <a class="nav-link" href="#fahrerstatistiken" data-view-link="fahrerstatistiken" hidden>Statistiken</a>
@@ -385,7 +387,7 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 <div id="loginChoice" class="login-choice"><div><span class="login-logo"><img src="assets/vtr-logo.jpg" alt="Virtual Tier Racing" width="1280" height="1280"></span><h2>Dein Platz im Fahrerbereich</h2><p>Melde dich mit Discord an, um Fahrerstatistiken, dein Profil und den Fahrermarkt zu öffnen. Kalender, Ergebnisse und Teams sind öffentlich zugänglich.</p></div><div class="login-choice-actions"><button id="login" type="button">Mit Discord anmelden</button><button id="guestContinue" class="outline" type="button">Zur öffentlichen Website</button></div></div>
 </section></section>
 <section class="hero dashboard-hero" data-page-view="dashboard" hidden>
-<div class="hero-content"><div class="eyebrow">VIRTUAL TIER RACING / TIER 1</div><h1>VIRTUAL<br>TIER <em>RACING.</em></h1><p>Eine Liga. Ein Grid. Alles im Blick.</p><div class="hero-actions"><a class="portal-button" href="#kalender">Zum Rennkalender</a><a class="portal-button outline" href="#fahrerbereich">Fahrerbereich</a></div></div>
+<div class="hero-content"><div class="eyebrow">VIRTUAL TIER RACING / TIER 1</div><h1>VIRTUAL<br>TIER <em>RACING.</em></h1><p>Eine Liga. Ein Grid. Alles im Blick.</p><div class="hero-actions"><a class="portal-button" href="#kalender">Zum Rennkalender</a><a class="portal-button outline" href="#fahrerbereich">Fahrerbereich</a><a class="portal-button outline" href="#livestream">Livestream ansehen</a></div></div>
 <aside class="race-preview"><span class="eyebrow">TIER 1 · NÄCHSTES RENNEN</span><h2 id="heroRaceName">Renntermine folgen.</h2><p id="heroRaceDate">Der Kalender wird von der Ligaleitung veröffentlicht.</p><div class="season-label">SAISON <strong id="leagueSeasonLabel">Noch offen</strong></div></aside>
 </section>
 <section class="portal-section" data-page-view="league" hidden><div class="section-toolbar"><h2>Aus der Liga</h2><span class="muted">TIER 1</span></div><div id="leagueNews" class="news-grid"><p class="muted">Noch keine Neuigkeiten veröffentlicht.</p></div></section>
@@ -401,6 +403,7 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 
 </section>
 <section class="portal-section" data-page-view="calendar" hidden><p class="eyebrow">TIER 1 / RENNKALENDER</p><h1>Die nächste Startaufstellung wartet.</h1><p class="muted">Alle veröffentlichten Renntermine der ausgewählten Saison.</p><section class="card dashboard-calendar"><h2>Rennkalender</h2><p id="dashboardNextRace" class="calendar-next" hidden></p><div id="dashboardCalendar"><p class="muted">Rennkalender wird geladen …</p></div></section></section>
+<section class="portal-section stream-page" data-page-view="stream" hidden aria-labelledby="streamTitle"><p class="eyebrow">VTR / TWITCH</p><h1 id="streamTitle">Der Stream zur Liga.</h1><p class="muted">Hier läuft der Twitch-Stream von vdr_julian. Ist der Kanal offline, zeigt Twitch den entsprechenden Hinweis.</p><div class="twitch-frame"><iframe id="twitchPlayer" title="Twitch-Livestream von vdr_julian" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><p class="muted">Falls der Player nicht lädt, öffne den Stream direkt auf Twitch.</p><a class="portal-button outline" href="https://www.twitch.tv/vdr_julian" target="_blank" rel="noopener noreferrer">Auf Twitch ansehen</a></section>
 <div id="app">
 <section id="auctionPage" data-page-view="auctions" hidden aria-labelledby="auctionPageTitle"><header class="auction-page-header"><h2 id="auctionPageTitle">Live-Auktionen</h2><p class="muted">Aktuelle Fahrerauktion und Gebotsverlauf.</p></header><p id="auctionNotice" role="status" aria-live="polite"></p><div id="auctions" class="grid"></div></section>
 <section id="statistics-section" data-page-view="statistics" hidden><h2 class="section">Fahrerstatistiken</h2><p class="muted">Punkte, Siege und Platzierungen aus veröffentlichten Rennergebnissen. Wähle einen Fahrer für sein vollständiges Profil.</p><form id="statisticsFilter" class="race-filter"><label>Saison / Meisterschaft<input id="statisticsSeason" list="statisticsSeasons" maxlength="40" required><datalist id="statisticsSeasons"></datalist></label><button type="submit" class="outline">Anzeigen</button></form><p id="driverLinkHint" class="muted" hidden>Dein Discord-Konto ist noch keinem Fahrerprofil zugeordnet. Du kannst alle veröffentlichten Fahrerstatistiken ansehen.</p><section id="ownStatistics" class="card" hidden></section><div id="statisticsList" class="card"><p class="muted">Statistiken werden geladen …</p></div></section><section id="results-section" data-page-view="results" hidden><h2 class="section">Rennergebnisse</h2>
@@ -422,7 +425,7 @@ body{background:#0d0f12;color:#f6f5f1}.sidebar{position:sticky;top:0;width:100%;
 </main><footer><span class="footer-logo"><img src="assets/vtr-logo.jpg" alt="VTR" width="1280" height="1280" loading="lazy"></span><span>Virtual Tier Racing · Tier 1</span></footer>
 </div>
 <script src="config.js"></script>
-<script type="module" src="app.js?v=20261111-startnummern-f1-2"></script>
+<script type="module" src="app.js?v=20261111-twitch-1"></script>
 </body></html>
 
 

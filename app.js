@@ -678,6 +678,7 @@ $('leagueContentForm').onsubmit=async event=>{event.preventDefault();if(!isAdmin
  if((body.status==='published'||editingContent?.status==='published')&&!confirm(body.status==='published'?'Diesen Inhalt öffentlich veröffentlichen?':'Diesen Inhalt von der öffentlichen Website zurückziehen?'))return;
  const button=event.currentTarget.querySelector('button');button.disabled=true;try{await apiRequest('/api/admin/league/content'+(editingContent?'/'+editingContent.id:''),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});await loadLeagueAdmin();await loadLeague();editLeagueContent();$('leagueAdminNotice').textContent='Inhalt gespeichert.';}catch(error){$('leagueAdminNotice').textContent=error.message;}finally{button.disabled=false;}};
 const viewRoutes={
+ livestream:{label:'Livestream',section:'stream'},
  start:{label:'Startseite',section:'dashboard'},anmeldung:{label:'Anmeldung',section:null},
  kalender:{label:'Rennkalender',section:'calendar'},liga:{label:'Die Liga',section:'league'},
  fahrerbereich:{label:'Fahrerbereich',section:'driver',protected:true},
@@ -693,6 +694,12 @@ function updateLoginChoice(){const checking=Boolean(token)&&!authenticated;$('en
 $('guestContinue').onclick=()=>{sessionStorage.removeItem('f1_return_view');navigateTo('start');};
 $('returnToLogin').onclick=()=>navigateTo('anmeldung');
 $('menuToggle').onclick=()=>{const open=document.querySelector('.sidebar').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};
+function loadTwitchPlayer(){
+ const frame=$('twitchPlayer');if(!frame||frame.getAttribute('src'))return;
+ const parent=location.hostname;
+ if(!['juligg1506.github.io','racingleague.online','www.racingleague.online'].includes(parent))return;
+ const url=new URL('https://player.twitch.tv/');url.search=new URLSearchParams({channel:'vdr_julian',parent,autoplay:'false',muted:'true'}).toString();frame.src=url.href;
+}
 function applyView(moveFocus=false){
  let route=currentViewRoute();
  if(viewRoutes[route].protected&&!authenticated){if(token){$('entryScreen').hidden=true;return;}sessionStorage.setItem('f1_return_view',route);route='anmeldung';}
@@ -704,7 +711,7 @@ function applyView(moveFocus=false){
  for(const link of document.querySelectorAll('[data-view-link]')){const key=link.dataset.viewLink;link.hidden=(['fahrerstatistiken','auktionen'].includes(key)&&!authenticated)||(key==='administration'&&!isAdmin);const active=key===route;link.classList.toggle('active',active);if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');}
  document.querySelector('.top-heading').textContent=view.label;document.title=view.label+' | Virtual Tier Racing';
  document.querySelector('.sidebar').classList.remove('menu-open');$('menuToggle').setAttribute('aria-expanded','false');updateLoginChoice();
- if(route==='fahrerbereich'&&authenticated)loadNumberRules();if(route==='teams')loadTeams();if(route==='rennergebnisse')loadRaceArea();if(route==='fahrerstatistiken')loadDriverStatistics();if(route==='auktionen'&&authenticated)loadAuction();if(route==='administration')loadLeagueAdmin();
+ if(route==='fahrerbereich'&&authenticated)loadNumberRules();if(route==='livestream')loadTwitchPlayer();else $('twitchPlayer').removeAttribute('src');if(route==='teams')loadTeams();if(route==='rennergebnisse')loadRaceArea();if(route==='fahrerstatistiken')loadDriverStatistics();if(route==='auktionen'&&authenticated)loadAuction();if(route==='administration')loadLeagueAdmin();
  if(route==='start'||route==='kalender')loadDashboard();
  if(moveFocus){window.scrollTo({top:0,behavior:'instant'});const panel=document.querySelector('[data-page-view="'+view.section+'"]:not([hidden])');const heading=panel?.querySelector('h1,h2,h3');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}else if(route==='anmeldung')$('login').focus({preventScroll:true});}
 }
