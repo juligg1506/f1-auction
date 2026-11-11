@@ -23,8 +23,9 @@ const TEAM_ROLES = {
   '1569350847035351220': 'Alpine',
   '1569351267183108106': 'Cadillac'
 };
-const FRONTEND = 'https://juligg1506.github.io/f1-auction/';
-const ALLOWED_ORIGIN = 'https://juligg1506.github.io';
+const FRONTEND = 'https://racingleague.online/';
+const ALLOWED_ORIGIN = 'https://racingleague.online';
+const FRONTEND_ORIGINS=new Set([ALLOWED_ORIGIN,'https://www.racingleague.online','https://juligg1506.github.io']);
 const encoder = new TextEncoder();
 const json = (value, status = 200, headers = {}) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...headers } });
 const random = () => { const bytes = crypto.getRandomValues(new Uint8Array(32)); return [...bytes].map(b => b.toString(16).padStart(2, '0')).join(''); };
@@ -80,7 +81,7 @@ if (!response.ok) {
   return {member:true,team:teams.length === 1 ? teams[0] : null};
 }
 
-export default {
+const application = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -1047,3 +1048,16 @@ async function cleanSessionStorage(env) {
   env.DB.prepare('DELETE FROM kv_write_budget WHERE day<?').bind(new Date(now-8*86400000).toISOString().slice(0,10))
  ]);
 }
+
+
+// Request-local CORS supports both domain variants and existing browser tabs.
+export default {
+ async fetch(request,env,ctx){
+  const response=await application.fetch(request,env,ctx);
+  const origin=request.headers.get('Origin');
+  if(!FRONTEND_ORIGINS.has(origin))return response;
+  const headers=new Headers(response.headers);headers.set('Access-Control-Allow-Origin',origin);headers.set('Vary','Origin');
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
+ },
+ scheduled(event,env,ctx){return application.scheduled(event,env,ctx);}
+};
