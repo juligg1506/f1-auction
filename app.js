@@ -694,20 +694,37 @@ function updateLoginChoice(){const checking=Boolean(token)&&!authenticated;$('en
 
 $('returnToLogin').onclick=()=>navigateTo('anmeldung');
 $('menuToggle').onclick=()=>{const open=document.querySelector('.sidebar').classList.toggle('menu-open');$('menuToggle').setAttribute('aria-expanded',String(open));};
-let twitchConsent = false;
+const CONSENT_KEY='vtr_privacy_preferences_v1',CONSENT_AGE=180*24*60*60*1000;
+let consentChoice=null,twitchConsent=false;
+function readConsent(){try{const value=JSON.parse(localStorage.getItem(CONSENT_KEY)||'null');if(value?.version===1&&typeof value.twitch==='boolean'&&Number.isFinite(value.updatedAt)&&Date.now()-value.updatedAt>=0&&Date.now()-value.updatedAt<CONSENT_AGE)return value;localStorage.removeItem(CONSENT_KEY);}catch{}return null;}
+function stopTwitchPlayer(){
+ $('twitchPlayer').removeAttribute('src');$('twitchFrame').hidden=true;$('twitchConsentPanel').hidden=false;$('twitchRevoke').hidden=true;
+}
 function loadTwitchPlayer(){
- if(!twitchConsent)return;
+ if(!authenticated||!twitchConsent)return;
  const frame=$('twitchPlayer');if(!frame||frame.getAttribute('src'))return;
- const parent=location.hostname;
- if(!['juligg1506.github.io','racingleague.online','www.racingleague.online'].includes(parent))return;
+ const parent=location.hostname;if(!['juligg1506.github.io','racingleague.online','www.racingleague.online'].includes(parent))return;
  const url=new URL('https://player.twitch.tv/');url.search=new URLSearchParams({channel:'vdr_julian',parent,autoplay:'false',muted:'true'}).toString();frame.src=url.href;
+ $('twitchConsentPanel').hidden=true;$('twitchFrame').hidden=false;$('twitchRevoke').hidden=false;
 }
-function resetTwitchConsent(){
- twitchConsent=false;$('twitchPlayer').removeAttribute('src');$('twitchFrame').hidden=true;$('twitchConsentPanel').hidden=false;$('twitchRevoke').hidden=true;
+function resetTwitchConsent(){stopTwitchPlayer();}
+function applyConsent(value){consentChoice=value;twitchConsent=Boolean(value?.twitch);$('cookieTwitch').checked=twitchConsent;stopTwitchPlayer();if(twitchConsent&&authenticated&&currentViewRoute()==='livestream')loadTwitchPlayer();}
+function saveConsent(twitch){
+ const value={version:1,twitch,updatedAt:Date.now()};let saved=true;
+ try{localStorage.setItem(CONSENT_KEY,JSON.stringify(value));}catch{saved=false;}
+ applyConsent(value);$('cookieBanner').hidden=true;$('cookieStatus').textContent=saved?'Deine Datenschutzauswahl wurde gespeichert.':'Die Auswahl gilt für diesen Seitenbesuch. Dein Browser erlaubt keine dauerhafte Speicherung.';
 }
-$('twitchDecline').onclick=()=>{resetTwitchConsent();$('twitchChoiceStatus').textContent='Twitch bleibt gesperrt. Es wird kein Player geladen.';};
-$('twitchAccept').onclick=()=>{$('twitchChoiceStatus').textContent='';twitchConsent=true;$('twitchConsentPanel').hidden=true;$('twitchFrame').hidden=false;$('twitchRevoke').hidden=false;loadTwitchPlayer();};
-$('twitchRevoke').onclick=()=>{resetTwitchConsent();$('twitchAccept').focus();};
+function openCookieSettings(){const details=$('cookieDetails');$('cookieBanner').hidden=false;details.open=true;$('cookieTwitch').checked=twitchConsent;$('cookieHeading').focus();}
+$('cookieAcceptAll').onclick=()=>saveConsent(true);
+$('cookieNecessary').onclick=()=>saveConsent(false);
+$('cookieSave').onclick=()=>saveConsent($('cookieTwitch').checked);
+$('cookieSettings').onclick=openCookieSettings;
+$('twitchDecline').onclick=()=>{saveConsent(false);$('twitchChoiceStatus').textContent='Twitch bleibt gesperrt. Es wird kein Player geladen.';};
+$('twitchAccept').onclick=()=>{$('twitchChoiceStatus').textContent='';saveConsent(true);};
+$('twitchRevoke').onclick=()=>{saveConsent(false);$('twitchAccept').focus();};
+window.addEventListener('storage',event=>{if(event.key===CONSENT_KEY||event.key===null){const value=readConsent();applyConsent(value);$('cookieBanner').hidden=Boolean(value);}});
+consentChoice=readConsent();twitchConsent=Boolean(consentChoice?.twitch);$('cookieTwitch').checked=twitchConsent;$('cookieBanner').hidden=Boolean(consentChoice);
+setInterval(()=>{if(consentChoice&&Date.now()-consentChoice.updatedAt>=CONSENT_AGE){try{localStorage.removeItem(CONSENT_KEY);}catch{}applyConsent(null);$('cookieBanner').hidden=false;}},60000);
 function applyView(moveFocus=false){
  let route=currentViewRoute();
  if(!authenticated){if(route!=='anmeldung')sessionStorage.setItem('f1_return_view',route);route='anmeldung';}
@@ -741,3 +758,4 @@ async function refreshMembership(){
 }
 setInterval(()=>{if(!document.hidden)refreshMembership();},15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMembership();});
+
