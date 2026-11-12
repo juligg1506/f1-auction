@@ -1,0 +1,18 @@
+import {env} from './worker.test.mjs';
+import {readFileSync} from 'node:fs';import assert from 'node:assert/strict';
+const source=readFileSync(new URL('../worker.js',import.meta.url),'utf8');
+const {syncNumberOverview,numberOverviewEmbed}=await import('data:text/javascript;base64,'+Buffer.from(source+'\nexport {syncNumberOverview,numberOverviewEmbed};').toString('base64'));
+for(const sql of readFileSync(new URL('../migrations/008_discord_number_overview.sql',import.meta.url),'utf8').split(';').filter(s=>s.trim()))await env.DB.prepare(sql).run();
+const channel='1600000000000000000',lease='overview-test';
+await env.DB.prepare('INSERT INTO discord_number_sync(channel_id,last_message_id,lease_token,lease_until) VALUES(?,?,?,?)').bind(channel,'0',lease,new Date(Date.now()+120000).toISOString()).run();
+let calls=[],missing=false,error=false,id='1600000000000000001';
+globalThis.fetch=async(url,opts)=>{calls.push({url:String(url),method:opts.method,body:JSON.parse(opts.body)});if(error)return Response.json({},{status:403});if(missing&&opts.method==='PATCH'){missing=false;return Response.json({},{status:404});}return Response.json({id});};
+const sync=()=>syncNumberOverview(env,channel,lease,Date.now()+45000);
+await sync();assert.equal(calls.length,1);assert.equal(calls[0].method,'POST');assert.deepEqual(calls[0].body.allowed_mentions,{parse:[]});assert.equal(calls[0].body.enforce_nonce,true);assert.equal(calls[0].body.embeds.length,1);
+await sync();assert.equal(calls.length,1);
+await env.DB.prepare('UPDATE drivers SET racing_number=8 WHERE id=1').run();await sync();assert.equal(calls.length,2);assert.equal(calls[1].method,'PATCH');assert.ok(JSON.stringify(calls[1].body).includes('#08'));await sync();assert.equal(calls.length,2);
+missing=true;id='1600000000000000002';await env.DB.prepare('UPDATE drivers SET racing_number=9 WHERE id=1').run();await sync();assert.equal(calls.length,4);assert.equal(calls[3].method,'POST');assert.notEqual(calls[0].body.nonce,calls[3].body.nonce);
+await env.DB.prepare('UPDATE drivers SET racing_number=13 WHERE id=1').run();error=true;await assert.rejects(sync);error=false;await sync();assert.equal(calls.at(-1).method,'PATCH');
+const before=calls.length;await syncNumberOverview(env,channel,'wrong-lease',Date.now()+45000);assert.equal(calls.length,before);
+const worst=numberOverviewEmbed(Array.from({length:99},(_,i)=>({name:'@everyone **'.repeat(10),number:i+1,active:0})),[]);assert.ok(worst.fields.every(f=>f.value.length<=1024));assert.ok(JSON.stringify(worst).length<6000);assert.ok(!JSON.stringify(worst).includes('@everyone'));
+console.log('PASS number overview: one initial post, edit on changes only, no pings, deleted message recovery, stable retry state, lease protection and Discord embed limits');

@@ -996,6 +996,7 @@ async function syncDiscordNumbers(env) {
       if(!await commitNumberMessage(env,channelId,lease,cursor,message,command,eligible))return;cursor=message.id;
     }
     await deliverNumberReplies(env,channelId,lease,deadline);
+    await syncNumberOverview(env,channelId,lease,deadline);
     await env.DB.prepare('UPDATE discord_number_sync SET last_checked_at=?,last_error=NULL,next_poll_at=NULL WHERE channel_id=? AND lease_token=?').bind(new Date().toISOString(),channelId,lease).run();
   }catch(error){
     const message=String(error.message||'Discord-Synchronisierung fehlgeschlagen').slice(0,300);
@@ -1061,3 +1062,53 @@ export default {
  },
  scheduled(event,env,ctx){return application.scheduled(event,env,ctx);}
 };
+
+
+function numberOverviewEmbed(drivers,reserved) {
+ const taken=new Set(drivers.map(d=>d.number)),blocked=new Set(reserved.map(d=>d.number));
+ const free=Array.from({length:99},(_,i)=>i+1).filter(n=>!taken.has(n)&&!blocked.has(n));
+ const fields=[];let lines=[];
+ const addLines=()=>{if(lines.length)fields.push({name:fields.length?'Belegte Startnummern · Fortsetzung':'Belegte Startnummern',value:lines.join('\n'),inline:false});lines=[];};
+ for(const driver of drivers){
+  const name=String(driver.name).replace(/[\r\n`*_~|<>@]/g,' ').replace(/\s+/g,' ').trim().slice(0,24)||'Liga-Fahrer';
+  const line='**#'+String(driver.number).padStart(2,'0')+'** · '+name+(driver.active?'':' (reserviert)');
+  if(lines.join('\n').length+line.length+1>950)addLines();lines.push(line);
+ }
+ addLines();if(!drivers.length)fields.push({name:'Belegte Startnummern',value:'Noch keine Startnummern vergeben.',inline:false});
+ fields.push({name:'Gesperrte F1-Nummern',value:reserved.map(d=>d.number).join(', ')||'Keine',inline:false},
+  {name:'Aktuell frei',value:free.join(', ')||'Zurzeit ist keine Startnummer frei.',inline:false});
+ return {title:'VTR · Startnummern-Übersicht',description:'Diese Nachricht wird bei Änderungen automatisch aktualisiert. Nummern sind ligaweit einmalig. Als „reserviert“ markierte Nummern bleiben belegt, auch wenn die Fahrerrolle gerade fehlt.',color:0x21d4f4,fields,
+  footer:{text:'Wählen oder ändern: !nummer '+(free[0]||'<Zahl>')+' · Warte auf die Bestätigung des Bots.'}};
+}
+async function syncNumberOverview(env,channelId,lease,deadline) {
+ const guard=async()=>Date.now()<deadline&&Boolean(await env.DB.prepare('SELECT 1 AS ok FROM discord_number_sync WHERE channel_id=? AND lease_token=? AND lease_until>?').bind(channelId,lease,new Date().toISOString()).first());
+ if(!await guard())return;
+ await env.DB.prepare('INSERT INTO discord_number_overview(channel_id) VALUES(?) ON CONFLICT(channel_id) DO NOTHING').bind(channelId).run();
+ let state=await env.DB.prepare('SELECT message_id,content_hash,generation FROM discord_number_overview WHERE channel_id=?').bind(channelId).first();
+ const data=await env.DB.batch([
+  env.DB.prepare('SELECT name,racing_number AS number,discord_active AS active FROM drivers WHERE racing_number IS NOT NULL ORDER BY racing_number'),
+  env.DB.prepare('SELECT number FROM reserved_racing_numbers ORDER BY number')
+ ]);
+ const embed=numberOverviewEmbed(data[0].results,data[1].results),hash=await sha256(JSON.stringify(embed));
+ if(state.message_id&&state.content_hash===hash)return;
+ const payload={embeds:[{...embed,timestamp:new Date().toISOString()}],allowed_mentions:{parse:[]}};
+ let message;
+ if(state.message_id){
+  if(!await guard())return;
+  try{message=await numberDiscord(env,'/channels/'+channelId+'/messages/'+state.message_id,{method:'PATCH',body:JSON.stringify(payload)});}
+  catch(error){
+   if(error.status!==404)throw error;
+   await env.DB.prepare('UPDATE discord_number_overview SET message_id=NULL,content_hash=NULL,generation=generation+1 WHERE channel_id=?').bind(channelId).run();
+   state={...state,message_id:null,generation:state.generation+1};
+  }
+ }
+ if(!state.message_id){
+  if(!await guard())return;
+  const nonce=(await sha256(channelId+':'+state.generation)).slice(0,24);
+  message=await numberDiscord(env,'/channels/'+channelId+'/messages',{method:'POST',body:JSON.stringify({...payload,nonce,enforce_nonce:true})});
+ }
+ if(!/^\d{15,25}$/.test(message?.id||''))throw Error('Discord-Übersicht: ungültige Nachrichten-ID');
+ await env.DB.prepare(`UPDATE discord_number_overview SET message_id=?,content_hash=?,updated_at=? WHERE channel_id=?
+  AND EXISTS(SELECT 1 FROM discord_number_sync WHERE channel_id=? AND lease_token=? AND lease_until>?)`)
+  .bind(message.id,hash,new Date().toISOString(),channelId,channelId,lease,new Date().toISOString()).run();
+}
