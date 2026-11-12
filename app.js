@@ -207,6 +207,30 @@ function auctionActivity(a){
 }
 function getMinimumBid(a) { return a.highestBid != null ? Number(a.highestBid)+BID_STEP : Number(a.startingPrice); }
 function getRemainingMs(a) { return Date.parse(a.endsAt)-Date.now()-serverOffset; }
+let bidReview=null;
+function updateBidReview(){
+ if(!bidReview)return false;
+ const {auctionId,amount}=bidReview,a=currentAuction;
+ let error='';
+ if(!authenticated||!myTeam)error='Bitte als Teamchef mit Discord anmelden.';
+ else if(!a||a.id!==auctionId)error='Diese Auktion ist nicht mehr aktiv.';
+ else if(getRemainingMs(a)<=0)error='Die Auktion ist abgelaufen.';
+ else if(Number(a.leadingTeamId)===Number(myTeam.id))error='Dein Team führt bereits. Ein weiteres Gebot ist nicht nötig.';
+ else if(amount<getMinimumBid(a))error='Du wurdest überboten. Das Mindestgebot beträgt jetzt '+format(getMinimumBid(a))+' Coins. Wähle einen neuen Betrag.';
+ else if(amount>Number(myTeam.budget))error='Dein aktuelles Budget reicht für dieses Gebot nicht aus.';
+ $('bidReviewError').textContent=error;$('confirmBid').disabled=Boolean(error);
+ $('bidReviewBudget').textContent=myTeam?format(Math.max(0,Number(myTeam.budget)-amount))+' Coins':'–';
+ return !error;
+}
+function reviewAuctionBid(a,amount){
+ if(bidReview)return Promise.resolve(false);
+ bidReview={auctionId:a.id,amount};
+ $('bidReviewDriver').textContent=a.driverName;$('bidReviewTeam').textContent=myTeam.name;$('bidReviewAmount').textContent=format(amount);updateBidReview();
+ const dialog=$('bidDialog');dialog.returnValue='cancel';dialog.showModal();
+ return new Promise(resolve=>dialog.addEventListener('close',()=>{const accepted=dialog.returnValue==='confirm';bidReview=null;$('bidButton')?.focus({preventScroll:true});resolve(accepted);},{once:true}));
+}
+$('cancelBid').onclick=()=>$('bidDialog').close('cancel');
+$('confirmBid').onclick=()=>{if(updateBidReview())$('bidDialog').close('confirm');};
 function renderBidControls(card,a) {
   if (!authenticated || !myTeam) return;
   if (a.leadingTeamId != null && Number(a.leadingTeamId) === Number(myTeam.id)) {
@@ -219,7 +243,7 @@ function renderBidControls(card,a) {
   const minimumBid=getMinimumBid(a);
   if (selectedAuctionId!==a.id) { selectedAuctionId=a.id; selectedBid=minimumBid; }
   if (selectedBid===null || selectedBid<minimumBid) selectedBid=minimumBid;
-  const label=document.createElement('p');label.className='bid-amount-label';label.textContent='Gebotsbetrag';
+  const label=document.createElement('p');label.className='bid-amount-label';label.append(ui('span','','Gebotsbetrag'),ui('span','bid-minimum','Minimum: '+format(minimumBid)+' Coins'));
   const controls=document.createElement('div');controls.className='bid-controls';
   const makeButton=(text,name,key)=>{const button=document.createElement('button');button.type='button';button.textContent=text;button.setAttribute('aria-label',name);button.dataset.auctionFocus=key;return button;};
   const minus=makeButton('−','Gebot um 250.000 Coins verringern','minus');
@@ -231,18 +255,19 @@ function renderBidControls(card,a) {
   const remaining=document.createElement('p');remaining.className='bid-budget-preview';
   const bidButton=makeButton('','Gebot abgeben','submit');bidButton.id='bidButton';bidButton.removeAttribute('aria-label');
   const warning=document.createElement('p');warning.className='bid-warning';warning.setAttribute('role','status');
-  const step=document.createElement('p');step.className='bid-step-note';step.textContent='Schrittweite 250.000 Coins · Bestätigung vor Abgabe';
+  const step=document.createElement('p');step.className='bid-step-note';step.textContent='Du bestätigst dein Gebot erst im nächsten Schritt.';
   function updateControls() {
     amountDisplay.replaceChildren(document.createTextNode(format(selectedBid)));
     const unit=document.createElement('span');unit.textContent='Coins';amountDisplay.append(unit);
-    bidButton.textContent=bidPending?'Gebot wird gesendet …':format(selectedBid)+' Coins bieten';
+    const buttonCopy=ui('span','bid-button-copy');buttonCopy.append(ui('strong','',bidPending?'Gebot wird gesendet …':'Gebot prüfen'),ui('small','',format(selectedBid)+' Coins · '+(bidPending?'Bitte warten':'Weiter zur Bestätigung')));
+    const arrow=ui('span','bid-button-arrow','→');arrow.setAttribute('aria-hidden','true');bidButton.replaceChildren(buttonCopy,arrow);bidButton.setAttribute('aria-label','Gebot über '+format(selectedBid)+' Coins prüfen');
     const budget=Number(myTeam.budget),expired=getRemainingMs(a)<=0;
     minus.disabled=bidPending||expired||selectedBid<=minimumBid;
     plus.disabled=bidPending||expired||selectedBid+BID_STEP>budget;
     reset.disabled=bidPending||expired||selectedBid===minimumBid;
     addMillion.disabled=bidPending||expired||selectedBid+4*BID_STEP>budget;
     bidButton.disabled=bidPending||expired||selectedBid<minimumBid||selectedBid>budget;
-    remaining.textContent=selectedBid<=budget?'Nach dem Gebot verfügbar: '+format(budget-selectedBid)+' Coins':'Verfügbares Budget: '+format(budget)+' Coins';
+    remaining.replaceChildren(ui('span','',selectedBid<=budget?'Budget nach dem Gebot':'Verfügbares Budget'),ui('strong','',format(selectedBid<=budget?budget-selectedBid:budget)+' Coins'));
     warning.textContent=expired?'Die Auktion ist abgelaufen.':selectedBid>budget?'Dein Budget reicht für das Mindestgebot nicht aus.':'';
   }
   function change(amount) { if(bidPending||getRemainingMs(a)<=0)return; if(amount>=minimumBid && amount<=Number(myTeam.budget))selectedBid=amount;updateControls(); }
@@ -254,7 +279,8 @@ function renderBidControls(card,a) {
     if(getRemainingMs(a)<=0){notice('Diese Auktion ist abgelaufen.');return;}
     const amount=selectedBid;
     if(amount<getMinimumBid(a)||amount>Number(myTeam.budget)){notice('Ungültiger Gebotsbetrag.');return;}
-    if(!confirm(format(amount)+' Coins für '+a.driverName+' bieten?'))return;
+    if(!await reviewAuctionBid(a,amount))return;
+    if(!authenticated||!myTeam||!currentAuction||currentAuction.id!==a.id||Number(currentAuction.leadingTeamId)===Number(myTeam.id)||getRemainingMs(currentAuction)<=0||amount<getMinimumBid(currentAuction)||amount>Number(myTeam.budget)){notice('Die Auktion oder dein Budget hat sich geändert. Bitte prüfe dein Gebot erneut.');await loadAuction();return;}
     bidPending=true;updateControls();
     try {
       const accepted=await apiRequest('/api/auctions/bid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({auctionId:a.id,amount})});
@@ -275,7 +301,7 @@ async function loadAuction() {
     trackLeadingBid(currentAuction);
     if (previousAuction && previousAuction.id !== currentAuction?.id) { loadTeams(); loadDrivers(); loadTransfers(); authenticated && refreshBalance().catch(() => {}); if (isAdmin) loadQueue(); }
     serverOffset=Date.parse(data.serverTime)-Date.now();
-    if(!currentAuction){selectedAuctionId=null;selectedBid=null;renderDrivers();return;}
+    if(!currentAuction){selectedAuctionId=null;selectedBid=null;renderDrivers();updateBidReview();return;}
     setAuctionBadge(true);
     const a=currentAuction,card=ui('div','auction-card'),overview=ui('section','auction-overview'),identity=ui('div','auction-driver-identity');
     const driver=drivers.find(d=>Number(d.id)===Number(a.driverId))||knownDrivers.get(Number(a.driverId));
@@ -295,13 +321,14 @@ async function loadAuction() {
     card.append(overview,side,bidding,auctionActivity(a));
     const focusKey=$('auctions').contains(document.activeElement)?document.activeElement.dataset.auctionFocus:null;
     const historyScroll=$('auctions').querySelector('.bid-history-list')?.scrollTop || 0;
-    $('auctions').replaceChildren(card);updateTimer();
+    $('auctions').replaceChildren(card);updateTimer();updateBidReview();
     const historyList=card.querySelector('.bid-history-list');if(historyList)historyList.scrollTop=historyScroll;
     if(focusKey){const target=card.querySelector('[data-auction-focus="'+focusKey+'"]');const fallback=card.querySelector('[data-auction-focus="amount"], [data-auction-focus="leading"]');if(target&&!target.disabled)target.focus({preventScroll:true});else fallback?.focus({preventScroll:true});}
   } catch(e) {console.error('Auktion konnte nicht geladen werden:',e);notice('Auktion konnte nicht geladen werden: '+e.message);}
   finally {auctionLoading=false;}
 }
 function updateTimer() {
+  if(bidReview)updateBidReview();
   if(!currentAuction)return;
   const timer=$('auctionTimer');if(!timer)return;
   const remaining=Math.max(0,Math.ceil(getRemainingMs(currentAuction)/1000));
@@ -917,6 +944,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMem
 
 
 setInterval(()=>{if(authenticated&&!document.hidden&&['auktionen','administration'].includes(currentViewRoute()))loadDrivers();},60000);
+
 
 
 
