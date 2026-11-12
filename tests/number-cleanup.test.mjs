@@ -1,0 +1,17 @@
+import {env} from './worker.test.mjs';
+import {readFileSync} from 'node:fs';import assert from 'node:assert/strict';
+const source=readFileSync(new URL('../worker.js',import.meta.url),'utf8');const {cleanupNumberCommands,commitNumberMessage}=await import('data:text/javascript;base64,'+Buffer.from(source+'\nexport {cleanupNumberCommands,commitNumberMessage};').toString('base64'));
+for(const sql of readFileSync(new URL('../migrations/009_number_command_cleanup.sql',import.meta.url),'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await env.DB.prepare(sql).run();
+const channel='1600000000000000000',lease='cleanup-test';await env.DB.prepare('INSERT INTO discord_number_sync(channel_id,last_message_id,lease_token,lease_until) VALUES(?,?,?,?)').bind(channel,'0',lease,new Date(Date.now()+120000).toISOString()).run();
+for(const [id,outcome,delivered,eligible]of [['1600000000000000001','accepted','now',1],['1600000000000000002','taken','now',1],['1600000000000000003','accepted',null,1],['1600000000000000004','accepted','now',0]])await env.DB.prepare('INSERT INTO discord_number_commands(message_id,channel_id,discord_id,outcome,created_at,next_attempt_at,delivered_at,cleanup_eligible) VALUES(?,?,?,?,?,?,?,?)').bind(id,channel,'person',outcome,'now','now',delivered,eligible).run();
+const identity=await env.DB.prepare('SELECT discord_id FROM drivers WHERE id=1').first();
+await commitNumberMessage(env,channel,lease,'0',{id:'1600000000000000099',author:{id:identity.discord_id}},{number:92},true);
+assert.equal((await env.DB.prepare('SELECT cleanup_eligible FROM discord_number_commands WHERE message_id=?').bind('1600000000000000099').first()).cleanup_eligible,1);
+let calls=[],status=204;globalThis.fetch=async(url,opts)=>{calls.push({url:String(url),method:opts.method});return status===204?new Response(null,{status}):Response.json({},{status});};
+const sync=()=>cleanupNumberCommands(env,channel,lease,Date.now()+45000);
+await sync();assert.equal(calls.length,1);assert.equal(calls[0].method,'DELETE');assert.ok(calls[0].url.endsWith('1600000000000000001'));await sync();assert.equal(calls.length,1);
+const reset=()=>env.DB.prepare('UPDATE discord_number_commands SET deleted_at=NULL,next_delete_at=NULL WHERE message_id=?').bind('1600000000000000001').run();
+await reset();status=404;await sync();const read=()=>env.DB.prepare('SELECT deleted_at,delete_error,next_delete_at FROM discord_number_commands WHERE message_id=?').bind('1600000000000000001').first();assert.ok((await read()).deleted_at);
+await reset();status=403;await sync();let row=await read();assert.equal(row.deleted_at,null);assert.ok(row.delete_error.includes('Nachrichten verwalten'));assert.ok(row.next_delete_at);const n=calls.length;await sync();assert.equal(calls.length,n);
+await reset();status=204;await cleanupNumberCommands(env,channel,'wrong',Date.now()+45000);assert.equal(calls.length,n);
+console.log('PASS accepted commands only, confirmation required, historical messages untouched, 204 success, idempotency, already deleted, missing permissions/backoff and lease guard');

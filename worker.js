@@ -615,7 +615,7 @@ if(path==='/api/racing-number-rules'&&request.method==='GET'){
 }
 if(path==='/api/admin/number-sync'&&request.method==='GET'){
  const session=await getSession(request,env);if(!session)return safeError('Nicht angemeldet',401);if(!session.admin)return safeError('Nur Ligaleitung',403);
- const status=await env.DB.prepare('SELECT last_checked_at AS lastCheckedAt,last_error AS lastError FROM discord_number_sync WHERE channel_id=?').bind(env.DISCORD_NUMBER_CHANNEL_ID||'').first();
+ const status=await env.DB.prepare('SELECT last_checked_at AS lastCheckedAt,last_error AS lastError,can_manage_messages AS canManageMessages FROM discord_number_sync WHERE channel_id=?').bind(env.DISCORD_NUMBER_CHANNEL_ID||'').first();
  const pending=await env.DB.prepare('SELECT COUNT(*) AS count FROM discord_number_commands WHERE delivered_at IS NULL').first();
  return json({configured:Boolean(env.DISCORD_NUMBER_CHANNEL_ID&&env.DISCORD_BOT_TOKEN),status:status||null,pendingReplies:pending.count},200,cors);
 }
@@ -904,7 +904,7 @@ async function numberDiscord(env,path,options={}) {
     if(response.status===429){const body=await response.json().catch(()=>({}));error.retryAfter=Math.max(1,Number(body.retry_after)||60);}
     throw error;
   }
-  return response.json();
+  return response.status===204?null:response.json();
 }
 async function verifyNumberChannel(env,channelId) {
   const app=await numberDiscord(env,'/oauth2/applications/@me');
@@ -920,6 +920,8 @@ async function verifyNumberChannel(env,channelId) {
     const own=overwrites.find(o=>o.type===1&&o.id===app.id);if(own)permissions=(permissions&~BigInt(own.deny))|BigInt(own.allow);
     const needed=1024n|2048n|65536n;if((permissions&needed)!==needed)throw Error('Dem Bot fehlen Kanal ansehen, Nachrichtenverlauf lesen oder Nachrichten senden.');
   }
+  const canManageMessages=Boolean((permissions&8n)||(permissions&8192n));
+  await env.DB.prepare('UPDATE discord_number_sync SET can_manage_messages=? WHERE channel_id=? AND can_manage_messages IS NOT ?').bind(canManageMessages?1:0,channelId,canManageMessages?1:0).run();
   return app.id;
 }
 async function collectNumberMessages(env,channelId,cursor,deadline) {
@@ -939,11 +941,11 @@ async function collectNumberMessages(env,channelId,cursor,deadline) {
 async function commitNumberMessage(env,channelId,lease,cursor,message,command,eligible) {
   const now=new Date().toISOString(),guardArgs=[channelId,lease,now,cursor],statements=[];
   if(command){
-    statements.push(env.DB.prepare(`INSERT INTO discord_number_commands(message_id,channel_id,discord_id,requested_number,outcome,created_at,next_attempt_at,rejection_reason)
+    statements.push(env.DB.prepare(`INSERT INTO discord_number_commands(message_id,channel_id,discord_id,requested_number,outcome,created_at,next_attempt_at,rejection_reason,cleanup_eligible)
       SELECT ?,?,?,?,CASE WHEN ? IS NULL THEN 'invalid'
       WHEN EXISTS(SELECT 1 FROM reserved_racing_numbers WHERE number=?) THEN 'invalid'
       WHEN ?=0 OR NOT EXISTS(SELECT 1 FROM drivers WHERE discord_id=? AND discord_active=1) THEN 'unknown_driver'
-      WHEN EXISTS(SELECT 1 FROM drivers WHERE racing_number=? AND discord_id<>?) THEN 'taken' ELSE 'accepted' END,?,?,CASE WHEN EXISTS(SELECT 1 FROM reserved_racing_numbers WHERE number=?) THEN 'f1_reserved' ELSE NULL END
+      WHEN EXISTS(SELECT 1 FROM drivers WHERE racing_number=? AND discord_id<>?) THEN 'taken' ELSE 'accepted' END,?,?,CASE WHEN EXISTS(SELECT 1 FROM reserved_racing_numbers WHERE number=?) THEN 'f1_reserved' ELSE NULL END,1
       WHERE ${numberLeaseGuard} ON CONFLICT(message_id) DO NOTHING`)
       .bind(message.id,channelId,message.author.id,command.number,command.number,command.number,eligible?1:0,message.author.id,command.number,message.author.id,now,now,command.number,...guardArgs));
     statements.push(env.DB.prepare(`UPDATE drivers SET racing_number=? WHERE discord_id=? AND discord_active=1
@@ -997,6 +999,7 @@ async function syncDiscordNumbers(env) {
     }
     await deliverNumberReplies(env,channelId,lease,deadline);
     await syncNumberOverview(env,channelId,lease,deadline);
+    await cleanupNumberCommands(env,channelId,lease,deadline);
     await env.DB.prepare('UPDATE discord_number_sync SET last_checked_at=?,last_error=NULL,next_poll_at=NULL WHERE channel_id=? AND lease_token=?').bind(new Date().toISOString(),channelId,lease).run();
   }catch(error){
     const message=String(error.message||'Discord-Synchronisierung fehlgeschlagen').slice(0,300);
@@ -1111,4 +1114,26 @@ async function syncNumberOverview(env,channelId,lease,deadline) {
  await env.DB.prepare(`UPDATE discord_number_overview SET message_id=?,content_hash=?,updated_at=? WHERE channel_id=?
   AND EXISTS(SELECT 1 FROM discord_number_sync WHERE channel_id=? AND lease_token=? AND lease_until>?)`)
   .bind(message.id,hash,new Date().toISOString(),channelId,channelId,lease,new Date().toISOString()).run();
+}
+
+
+async function cleanupNumberCommands(env,channelId,lease,deadline) {
+ const due=(await env.DB.prepare(`SELECT message_id FROM discord_number_commands WHERE channel_id=? AND outcome='accepted'
+  AND cleanup_eligible=1 AND delivered_at IS NOT NULL AND deleted_at IS NULL AND (next_delete_at IS NULL OR next_delete_at<=?) ORDER BY length(message_id),message_id LIMIT 5`)
+  .bind(channelId,new Date().toISOString()).all()).results;
+ for(const item of due){
+  if(Date.now()>deadline)return;
+  const owned=await env.DB.prepare('SELECT 1 AS ok FROM discord_number_sync WHERE channel_id=? AND lease_token=? AND lease_until>?').bind(channelId,lease,new Date().toISOString()).first();if(!owned)return;
+  try{
+   await numberDiscord(env,'/channels/'+channelId+'/messages/'+item.message_id,{method:'DELETE'});
+  }catch(error){
+   if(error.status!==404){
+    const text=error.status===403?'Dem Bot fehlt Nachrichten verwalten im Startnummern-Kanal.':String(error.message||'Nachricht konnte nicht gelöscht werden').slice(0,200);
+    await env.DB.prepare('UPDATE discord_number_commands SET delete_error=?,next_delete_at=? WHERE message_id=?')
+     .bind(text,new Date(Date.now()+Math.max(error.status===403?3600:60,Number(error.retryAfter)||0)*1000).toISOString(),item.message_id).run();
+    console.warn('Startnummer gespeichert; Befehlsnachricht bleibt vorerst erhalten:',text);return;
+   }
+  }
+  await env.DB.prepare('UPDATE discord_number_commands SET deleted_at=?,next_delete_at=NULL,delete_error=NULL WHERE message_id=?').bind(new Date().toISOString(),item.message_id).run();
+ }
 }
