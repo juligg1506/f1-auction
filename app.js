@@ -181,14 +181,29 @@ async function loadDrivers() {
     if (!currentAuction) renderDrivers();
   } catch(e) { console.error('Fahrer konnten nicht geladen werden:',e); }
 }
+function auctionPortrait() {
+ const art=ui('div','auction-driver-art'),image=ui('img','');image.src='assets/auction-driver.svg';image.alt='';image.width=420;image.height=540;art.append(image);art.setAttribute('aria-hidden','true');return art;
+}
+function setAuctionBadge(active){const badge=$('auctionStatusBadge');badge.textContent=active?'LIVE':'PAUSE';badge.classList.toggle('is-paused',!active);}
 function renderDrivers() {
-  const container=$('auctions');
-  const card=document.createElement('div'); card.className='card auction-empty';
-  const heading=document.createElement('h3'); heading.textContent='Aktuell keine aktive Auktion';
-  const info=document.createElement('p'); info.className='muted'; info.textContent='Fahrerübersicht';
-  const list=document.createElement('ul');
-  for (const driver of drivers) { const item=document.createElement('li'); item.append(profileLink(driver)); list.appendChild(item); }
-  card.append(heading,info,list); container.replaceChildren(card);
+ setAuctionBadge(false);
+ const card=ui('section','auction-empty'),copy=ui('div','auction-empty-copy');
+ copy.append(ui('p','auction-eyebrow','VTR · FAHRERMARKT'),ui('h3','','Die nächste Auktion kommt.'),ui('p','muted',isAdmin?'Starte oder plane eine Fahrerauktion in der Verwaltung.':'Sobald die Ligaleitung eine Auktion startet, kannst du sie hier verfolgen.'));
+ const roster=ui('section','auction-empty-roster');roster.append(ui('h4','','Fahrer im Paddock'));
+ const list=ui('div','auction-driver-chips');for(const driver of drivers)list.append(profileLink(driver));roster.append(drivers.length?list:ui('p','muted','Zurzeit sind keine aktiven Fahrer verfügbar.'));
+ card.append(auctionPortrait(),copy,roster);$('auctions').replaceChildren(card);
+}
+const AUCTION_TEAM_COLORS={Ferrari:'#ed3347',McLaren:'#ff9d31',Mercedes:'#48e1c0','Red Bull':'#5e85ff',Williams:'#4eabff','Racing Bulls':'#a5b9ff','Aston Martin':'#42b792',Alpine:'#ef8dbf',Audi:'#ed4b57',Haas:'#b9c4d2',Cadillac:'#cbb36b'};
+function auctionTeamColor(name){return AUCTION_TEAM_COLORS[name]||'#8b75f7';}
+function auctionBudgetPanel(){
+ const panel=ui('aside','auction-budget-panel');panel.append(ui('p','auction-eyebrow',myTeam?'Dein verfügbares Budget':'Auktion verfolgen'),ui('strong','auction-budget-value',myTeam?format(myTeam.budget):'Nur ansehen'),ui('p','auction-budget',myTeam?myTeam.name+' · Liga-Coins':'Gebote können angemeldete Teamchefs abgeben.'));return panel;
+}
+function auctionActivity(a){
+ const section=ui('section','auction-activity'),header=ui('div','auction-activity-header');header.append(ui('h4','','Live-Meldungen'),ui('span','','Abgleich alle 3 Sekunden'));section.append(header);
+ const bids=(a.bids||[]).slice(0,3);
+ if(!bids.length)section.append(ui('p','muted','Noch kein Gebot eingegangen.'));
+ for(const bid of bids){const row=ui('div','auction-activity-row'),time=ui('time','',Number.isFinite(Date.parse(bid.createdAt))?new Intl.DateTimeFormat('de-DE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Berlin'}).format(new Date(bid.createdAt)):'–');time.dateTime=bid.createdAt;row.style.setProperty('--bid-color',auctionTeamColor(bid.teamName));row.append(time,ui('span','',bid.teamName+' bietet '+format(bid.amount)+' Coins.'));section.append(row);}
+ return section;
 }
 function getMinimumBid(a) { return a.highestBid != null ? Number(a.highestBid)+BID_STEP : Number(a.startingPrice); }
 function getRemainingMs(a) { return Date.parse(a.endsAt)-Date.now()-serverOffset; }
@@ -261,27 +276,23 @@ async function loadAuction() {
     if (previousAuction && previousAuction.id !== currentAuction?.id) { loadTeams(); loadDrivers(); loadTransfers(); authenticated && refreshBalance().catch(() => {}); if (isAdmin) loadQueue(); }
     serverOffset=Date.parse(data.serverTime)-Date.now();
     if(!currentAuction){selectedAuctionId=null;selectedBid=null;renderDrivers();return;}
-    const a=currentAuction, card=document.createElement('div'); card.className='card auction-card';
-    const overview=document.createElement('div');overview.className='auction-overview';
-    const bidding=document.createElement('div');bidding.className='auction-bidding';
-    const status=document.createElement('span');status.className='auction-live-label';status.textContent='FAHRERAUKTION';
-    const title=document.createElement('h3');title.style.marginTop='16px';title.append(profileLink({id:a.driverId,name:a.driverName}));
-    const price=document.createElement('p');price.className='auction-starting-price';price.textContent='Startpreis: '+format(a.startingPrice)+' Coins';
-    const highest=document.createElement('div');highest.className='auction-highest';
-    const priceLabel=document.createElement('span');priceLabel.textContent='Aktuelles Höchstgebot';
-    const priceAmount=document.createElement('strong');priceAmount.textContent=a.highestBid!=null?format(a.highestBid)+' Coins':'Noch kein Gebot';highest.append(priceLabel,priceAmount);
-    const timerLabel=document.createElement('div');timerLabel.className='auction-clock-label';timerLabel.textContent='Verbleibende Zeit';
-    const timer=document.createElement('div');timer.className='stat red';timer.id='auctionTimer';
-    const clock=document.createElement('div');clock.className='auction-clock';clock.append(timerLabel,timer);
-    overview.append(status,title,price,highest,clock);
-    if (a.leadingTeamName) { const leader=document.createElement('p');leader.className='auction-leader';leader.textContent='Führendes Team: '+a.leadingTeamName;overview.append(leader); }
-    if (data.features?.antiSnipeSeconds) { const rule=document.createElement('p');rule.className='auction-rule';rule.textContent='Gebote in den letzten '+data.features.antiSnipeSeconds+' Sekunden setzen die Restzeit auf '+data.features.antiSnipeSeconds+' Sekunden zurück.';overview.append(rule); }
-    const bidHeading=document.createElement('h4');bidHeading.textContent=myTeam?'Dein Gebot':'Auktion verfolgen';
-    const budgetInfo=document.createElement('p');budgetInfo.className='auction-budget';
-    budgetInfo.textContent=myTeam?myTeam.name+' · '+format(myTeam.budget)+' Coins verfügbar':'Du schaust als Besucher zu. Gebote können Teamchefs abgeben.';
-    bidding.append(bidHeading,budgetInfo);
-    renderBidControls(bidding,a);
-    card.append(overview,bidding,bidHistory(a));
+    setAuctionBadge(true);
+    const a=currentAuction,card=ui('div','auction-card'),overview=ui('section','auction-overview'),identity=ui('div','auction-driver-identity');
+    const driver=drivers.find(d=>Number(d.id)===Number(a.driverId))||knownDrivers.get(Number(a.driverId));
+    const title=ui('h3','auction-driver-title');title.append(profileLink({id:a.driverId,name:a.driverName,racingNumber:driver?.racingNumber}));
+    identity.append(ui('span','auction-live-label','Aktueller Fahrer'),title,ui('p','auction-starting-price','Startpreis: '+format(a.startingPrice)+' Coins'));
+    const metrics=ui('div','auction-key-metrics'),highest=ui('div','auction-highest'),leader=ui('div','auction-leader');
+    highest.append(ui('span','','Höchstgebot'),ui('strong','',a.highestBid!=null?format(a.highestBid):'Noch kein Gebot'),ui('small','','Liga-Coins'));
+    leader.append(ui('span','','Höchstbietender'),ui('strong','',a.leadingTeamName||'Noch kein Team'));metrics.append(highest,leader);
+    identity.append(metrics);
+    const clock=ui('div','auction-clock'),clockText=ui('div','auction-clock-text'),timer=ui('div','stat');timer.id='auctionTimer';clockText.append(ui('span','auction-clock-label','Restzeit'),timer);
+    const bar=ui('progress','auction-time-bar');bar.id='auctionTimeBar';bar.max=180;bar.value=180;bar.setAttribute('aria-label','Verbleibende Auktionszeit');clock.append(clockText,bar);
+    overview.append(auctionPortrait(),identity,clock);
+    const bidding=ui('section','auction-bidding');bidding.append(ui('h4','',myTeam?'Dein nächstes Gebot':'Du verfolgst die Auktion'));
+    if(myTeam)renderBidControls(bidding,a);else bidding.append(ui('p','auction-spectator','Nur Teamchefs können Gebote abgeben. Du kannst Höchstgebot und Verlauf live verfolgen.'));
+    if(data.features?.antiSnipeSeconds){const rule=ui('p','auction-rule','Gebote in den letzten '+data.features.antiSnipeSeconds+' Sekunden setzen die Restzeit auf '+data.features.antiSnipeSeconds+' Sekunden zurück.');bidding.append(rule);}
+    const side=ui('div','auction-side');side.append(auctionBudgetPanel(),bidHistory(a));
+    card.append(overview,side,bidding,auctionActivity(a));
     const focusKey=$('auctions').contains(document.activeElement)?document.activeElement.dataset.auctionFocus:null;
     const historyScroll=$('auctions').querySelector('.bid-history-list')?.scrollTop || 0;
     $('auctions').replaceChildren(card);updateTimer();
@@ -297,6 +308,9 @@ function updateTimer() {
   const minutes=Math.floor(remaining/60),seconds=remaining%60;
   timer.textContent=String(minutes).padStart(2,'0')+':'+String(seconds).padStart(2,'0');
   timer.classList.toggle('is-expired',remaining===0);
+  const bar=$('auctionTimeBar');if(bar){bar.hidden=remaining===0;bar.max=Math.max(180,remaining);bar.value=remaining;bar.setAttribute('aria-valuetext',remaining+' Sekunden verbleibend');}
+  timer.closest('.auction-clock')?.classList.toggle('is-critical',remaining<=15);
+  if(remaining===0)$('auctionStatusBadge').textContent='ABSCHLUSS';
   if(remaining===0){timer.textContent='Zeit abgelaufen – Abschluss ausstehend';
     const button=$('bidButton');if(button)button.disabled=true;
     document.querySelectorAll('.bid-controls button, .bid-shortcuts button').forEach(b=>b.disabled=true);
@@ -386,19 +400,16 @@ function trackLeadingBid(a) {
   }
 }
 function bidHistory(a) {
-  const section = ui('section', 'bid-history');
-  section.append(ui('h4', '', 'Gebotsverlauf'));
-  if (!Array.isArray(a.bids)) { section.append(ui('p', 'muted', 'Der Gebotsverlauf ist derzeit nicht verfügbar.')); return section; }
-  if (!a.bids.length) { section.append(ui('p', 'muted', 'Noch keine Gebote.')); return section; }
-  const list = ui('ol', 'bid-history-list');
-  for (const bid of a.bids) {
-    const row = ui('li', 'bid-history-row');
-    row.append(ui('span', '', bid.teamName), ui('strong', '', format(bid.amount) + ' Coins'), ui('time', 'muted', dateText(bid.createdAt)));
-    list.append(row);
-  }
-  section.append(list);
-  if (a.bids.length === 100) section.append(ui('p', 'muted', 'Die letzten 100 Gebote werden angezeigt.'));
-  return section;
+ const section=ui('section','bid-history');section.append(ui('h4','','Gebotsverlauf'),ui('p','auction-history-note','Alle Beträge in Liga-Coins'));
+ if(!Array.isArray(a.bids)){section.append(ui('p','muted','Der Gebotsverlauf ist derzeit nicht verfügbar.'));return section;}
+ if(!a.bids.length){section.append(ui('p','muted','Noch keine Gebote. Das erste Gebot eröffnet das Duell.'));return section;}
+ const list=ui('ol','bid-history-list');
+ for(const [index,bid]of a.bids.entries()){
+  const row=ui('li','bid-history-row'+(index===0?' is-leading':''));row.style.setProperty('--bid-color',auctionTeamColor(bid.teamName));
+  const time=ui('time','muted',dateText(bid.createdAt));time.dateTime=bid.createdAt;
+  row.append(ui('span','bid-team-name',bid.teamName),ui('strong','',format(bid.amount)),time);list.append(row);
+ }
+ section.append(list);if(a.bids.length===100)section.append(ui('p','muted','Die letzten 100 Gebote werden angezeigt.'));return section;
 }
 async function loadQueue() {
   if (!extensionReady || !isAdmin) return;
@@ -906,6 +917,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshMem
 
 
 setInterval(()=>{if(authenticated&&!document.hidden&&['auktionen','administration'].includes(currentViewRoute()))loadDrivers();},60000);
+
 
 
 
